@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# ~/.bashrc.local - Personal overrides (DO NOT commit secrets to version control)
+#
+# Created automatically by setup-distro.sh, or copy manually:
+#   cp "$DEV_TOOLBOX/.bashrc.local.example" ~/.bashrc.local
+#
+# This file is sourced at the end of .bashrc, so anything here takes precedence.
+# It is gitignored and should never be committed.
+#
+# Replace every <placeholder> with your own value before use.
+
+# :: CLAUDE CODE / AWS BEDROCK ::
+# AWS_PROFILE: the named profile in ~/.aws/config for Bedrock access.
+export AWS_PROFILE="<your-aws-bedrock-profile>"
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+export CLAUDE_CODE_USE_BEDROCK=1
+
+# WSL: derive the Windows username from the Linux $USER or set it explicitly.
+# On WSL the Windows username is usually available at /mnt/c/Users/<winuser>.
+WIN_USER="${WIN_USER:-$USER}"   # override WIN_USER if your Windows name differs
+
+if prompt_continue "Run aws sso login session?"; then
+    # WSL: point BROWSER at your preferred Windows browser.
+    # Common paths (uncomment the one that matches):
+    # export BROWSER='/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'
+    # export BROWSER='/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+    export BROWSER='/mnt/c/Program Files/Mozilla Firefox/firefox.exe'
+    aws sso login --profile "${AWS_PROFILE}"
+fi
+
+# :: AZURE DEVOPS ::
+export AZURE_DEVOPS_AUTH_METHOD=pat
+export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/<your-org>"
+export AZURE_DEVOPS_PAT="<your-personal-access-token>"
+export AZURE_DEVOPS_DEFAULT_PROJECT="<your-project>"
+
+# :: ATLASSIAN ::
+export ATLASSIAN_SITE_NAME="<your-atlassian-site>"
+export ATLASSIAN_USER_EMAIL="<your-email>"
+export ATLASSIAN_API_TOKEN="<your-api-token>"
+
+# :: MISC ::
+# Path to the dev-toolbox bash scripts directory (set by setup-distro.sh).
+export DEV_TOOLBOX="<SET_BY_SETUP_DISTRO>"
+export PATH="$PATH:$DEV_TOOLBOX"
+export HISTSIZE=100
+
+# :: PERSONAL ALIASES ::
+# Adjust the Windows drive letter and repo/project names to match your setup.
+# WSL mounts Windows drives as /mnt/<drive-letter-lowercase>/...
+REPOS_ROOT="${REPOS_ROOT:-/mnt/d/Repos}"        # Windows repos root in WSL
+MY_REPO="${MY_REPO:-$REPOS_ROOT/YourProject}"   # primary repo you work in daily
+
+alias cdrec="cd \"/mnt/c/Users/${WIN_USER}/Videos/Screen Recordings\""
+alias downloads="cd \"/mnt/c/Users/${WIN_USER}/Downloads\""
+alias cdrepo="cd \"$MY_REPO\""
+alias repos="cd \"$REPOS_ROOT\""
+
+alias edit-local="nano ~/.bashrc.local" # edit this file quickly
+alias reload="source ~/.bashrc"         # reload this bashrc without restarting
+
+# Add metadata option to /etc/wsl.conf so Linux file-permission bits are preserved.
+# chmod +x "$REPOS_ROOT/.local-dev-toolbox/scripts/bash/"*.sh  # make scripts executable
+alias wsl-enable-metadata='
+  if grep -q "^\[automount\]" /etc/wsl.conf 2>/dev/null; then
+    if grep -q "^options" /etc/wsl.conf; then
+      echo "options already set in /etc/wsl.conf"
+    else
+      sudo sed -i "/^\[automount\]/a options = \"metadata\"" /etc/wsl.conf
+      echo "Added options = \"metadata\" under [automount]"
+    fi
+  else
+    echo -e "\n[automount]\noptions = \"metadata\"" | sudo tee -a /etc/wsl.conf
+    echo "Added [automount] section with options = \"metadata\""
+  fi
+'
+
+# :: STARTUP :: (runs every time a new shell opens — keep it fast)
+# cdrepo
+# git status
+
+

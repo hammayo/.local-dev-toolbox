@@ -1,0 +1,33 @@
+# JetBrains / IDEs
+.idea/
+.docs/
+.obsidian/
+*.sln.iml
+
+# Claude
+/.claude/settings.local.json
+/.claude/worktrees/
+CLAUDE.md
+
+# Exclude any build pattern specific folders
+**/v[0-9]*.*/
+**/v.[0-9]*.*/
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+*.old
+.DS_Store
+
+/scripts/bash/.claude.json
+/scripts/bash/.bashrc.local
+
+# Windows Sandbox Setup
+/scripts/powershell/sandbox/.idea/
+/scripts/powershell/sandbox/Downloads/
+
+# Exclude Staging folders 
+/scripts/powershell/sandbox/x_bin/
+/scripts/powershell/utils/wip/
+/scripts/.docs/.obsidian/
