@@ -1,6 +1,5 @@
 # JetBrains / IDEs
 .idea/
-.docs/
 .obsidian/
 *.sln.iml
 
