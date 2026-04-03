@@ -390,7 +390,7 @@ install_gitleaks() {
 
     url="https://github.com/gitleaks/gitleaks/releases/download/v${latest_tag}/gitleaks_${latest_tag}_${os}_${arch}.tar.gz"
     tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
 
     if curl -fsSL "$url" -o "${tmpdir}/gitleaks.tar.gz" && \
        tar xzf "${tmpdir}/gitleaks.tar.gz" -C "$tmpdir" && \
@@ -468,10 +468,35 @@ install_cli() {
 
         if pkg_install "$tool" 2>/dev/null; then
             success "$tool (installed)"
+        elif [[ "$tool" == "fastfetch" && "$PLATFORM" == "debian" ]]; then
+            _install_fastfetch_deb
         else
             failure "$tool (failed)"
         fi
     done
+}
+
+# fastfetch fallback: download .deb from GitHub releases (not in Ubuntu repos pre-24.04)
+_install_fastfetch_deb() {
+    local arch latest_tag
+    arch=$(uname -m)
+    [[ "$arch" == "x86_64" ]] && arch="amd64"
+    latest_tag=$(curl -fsSL "https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest" \
+        | grep '"tag_name"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+    if [[ -z "$latest_tag" ]]; then
+        failure "fastfetch (failed)"
+        return
+    fi
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
+    if curl -fsSL "https://github.com/fastfetch-cli/fastfetch/releases/download/${latest_tag}/fastfetch-linux-${arch}.deb" \
+           -o "${tmpdir}/fastfetch.deb" \
+        && sudo dpkg -i "${tmpdir}/fastfetch.deb" >/dev/null 2>&1; then
+        success "fastfetch (installed)"
+    else
+        failure "fastfetch (failed)"
+    fi
 }
 
 # -------------------------------------------------------------------------
@@ -514,7 +539,7 @@ install_nerd_font() {
 
     url="https://github.com/ryanoasis/nerd-fonts/releases/download/${latest_tag}/${font_name}.zip"
     tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
 
     if curl -fsSL "$url" -o "${tmpdir}/${font_name}.zip"; then
         mkdir -p "$font_dir"
@@ -556,7 +581,11 @@ install_languages() {
     if [[ -s "$NVM_DIR/nvm.sh" ]] && [[ "$UPGRADE" == "false" ]]; then
         success "nvm (already installed)"
     else
-        if curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash >/dev/null 2>&1; then
+        local nvm_version
+        nvm_version=$(curl -fsSL "https://api.github.com/repos/nvm-sh/nvm/releases/latest" \
+            | grep '"tag_name"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+        nvm_version="${nvm_version:-master}"
+        if curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${nvm_version}/install.sh" | bash >/dev/null 2>&1; then
             success "nvm (installed)"
         else
             failure "nvm (failed)"
@@ -614,7 +643,7 @@ install_awscli() {
     # Linux: official installer
     local tmpdir
     tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
 
     if curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "${tmpdir}/awscliv2.zip" && \
        unzip -o "${tmpdir}/awscliv2.zip" -d "$tmpdir" >/dev/null && \
@@ -774,7 +803,24 @@ install_powershell() {
         return
     fi
 
-    # Debian/Ubuntu: Microsoft package repo
+    local arch
+    arch=$(dpkg --print-architecture 2>/dev/null || uname -m)
+
+    # On non-amd64 (e.g. arm64/Apple Silicon VM) the Microsoft apt repo only
+    # provides amd64 packages; use snap instead.
+    if [[ "$arch" != "amd64" ]]; then
+        if ! cmd_exists snap; then
+            sudo apt install -y snapd >/dev/null 2>&1 || true
+        fi
+        if sudo snap install powershell --classic 2>/dev/null; then
+            success "powershell (installed)"
+        else
+            failure "powershell (failed)"
+        fi
+        return
+    fi
+
+    # amd64: register Microsoft package repo then install via apt
     if ! [[ -f /etc/apt/sources.list.d/microsoft-prod.list ]] && \
        ! [[ -f /etc/apt/sources.list.d/microsoft.list ]]; then
         local release_id release_version deb_url
@@ -787,7 +833,7 @@ install_powershell() {
 
         local tmpdir
         tmpdir=$(mktemp -d)
-        trap 'rm -rf "$tmpdir"' RETURN
+        trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
         if curl -fsSL "$deb_url" -o "${tmpdir}/packages-microsoft-prod.deb"; then
             sudo dpkg -i "${tmpdir}/packages-microsoft-prod.deb" >/dev/null 2>&1
             sudo apt update >/dev/null 2>&1
