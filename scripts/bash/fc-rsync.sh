@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # fc-rsync.sh — Rsync a repo from a WSL-mounted Windows drive to a backup location.
 #
 # Usage:
@@ -26,6 +26,16 @@ DEFAULT_DEST="/mnt/c/Backups/Repos/Hydra.OPT.Service"
 
 SOURCE="${1:-${FC_RSYNC_SOURCE:-$DEFAULT_SOURCE}}"
 DEST="${2:-${FC_RSYNC_DEST:-$DEFAULT_DEST}}"
+
+if [[ ! -d "$SOURCE" ]]; then
+    echo "Error: source path does not exist: $SOURCE" >&2
+    exit 1
+fi
+
+if [[ ! -d "$(dirname "$DEST")" ]]; then
+    echo "Error: destination parent directory does not exist: $(dirname "$DEST")" >&2
+    exit 1
+fi
 
 echo "📦 Copying files..."
 rsync -av --delete --progress \

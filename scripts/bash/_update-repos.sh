@@ -217,6 +217,7 @@ discover_repos() {
 
     if [[ ${#repos[@]} -eq 0 ]]; then
         warn "No repositories found matching '${CHILD_FOLDER_PREFIX}*' in '$root'"
+        warn "  Set --prefix to match your repository naming convention (e.g. --prefix=MyProject or --prefix='' for all)"
         return 1
     fi
 

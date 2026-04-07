@@ -86,7 +86,7 @@ get_distro() {
     fi
 
     if [[ -f /etc/os-release ]]; then
-        source /etc/os-release
+        . /etc/os-release
         case "$ID" in
             ubuntu|debian|mint)                 echo "debian" ;;
             fedora|rhel|centos|rocky|almalinux) echo "redhat" ;;
@@ -157,6 +157,7 @@ pkg_install() {
 
     [[ ${#resolved[@]} -eq 0 ]] && return 0
 
+    if is_dry_run; then dry_step "pkg install: ${resolved[*]}"; return; fi
     case "$PKG_MANAGER" in
         brew) brew install "${resolved[@]}" ;;
         apt)  sudo apt install -y "${resolved[@]}" ;;
@@ -165,6 +166,7 @@ pkg_install() {
 
 # Refresh package index
 pkg_update() {
+    if is_dry_run; then dry_step "update package index ($PKG_MANAGER)"; return; fi
     case "$PKG_MANAGER" in
         brew) brew update ;;
         apt)  sudo apt update ;;
@@ -202,6 +204,10 @@ needs_install() {
     return 0
 }
 
+# Dry-run helpers
+is_dry_run() { [[ "$DRY_RUN" == "true" ]]; }
+dry_step()   { msg "  [DRY RUN] would: $1" "cyan"; }
+
 # -------------------------------------------------------------------------
 # Configuration
 # -------------------------------------------------------------------------
@@ -211,6 +217,7 @@ ALL_CATEGORIES="dotfiles core cli shell languages cloud web containers powershel
 # Resolve DEV_TOOLBOX from this script's location
 DEV_TOOLBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UPGRADE=false
+DRY_RUN=false
 ONLY_CATEGORIES=""
 SKIP_CATEGORIES=""
 INVALID_ARGS=()
@@ -234,6 +241,7 @@ Options:
   --only=<csv>         Install only these categories (e.g. --only=core,cli)
   --skip=<csv>         Skip these categories (e.g. --skip=cloud,containers)
   --upgrade            Re-install/upgrade tools even if already present
+  --dry-run            Print what would be installed without making changes
   --help               Show this help message
 
 Categories: dotfiles, core, cli, shell, languages, cloud, web, containers, powershell
@@ -272,6 +280,7 @@ parse_args() {
                 SKIP_CATEGORIES="$value"
                 ;;
             upgrade)  UPGRADE=true ;;
+            dry-run)  DRY_RUN=true ;;
             help)     show_usage; exit 0 ;;
             *)        INVALID_ARGS+=("$arg") ;;
         esac
@@ -315,6 +324,11 @@ link_dotfile() {
         return
     fi
 
+    if is_dry_run; then
+        dry_step "link $dest → $src"
+        return
+    fi
+
     # Back up existing file if it's not a symlink to our source
     if [[ -e "$dest" || -L "$dest" ]]; then
         mv "$dest" "${dest}.bak.$(date +%Y%m%d%H%M%S)"
@@ -331,13 +345,30 @@ link_dotfile() {
 install_dotfiles() {
     step "Linking dotfiles from DEV_TOOLBOX..."
 
-    # Symlink shell config files so edits in the toolbox are reflected automatically
-    link_dotfile "$DEV_TOOLBOX/.bashrc"       "$HOME/.bashrc"
+    # Shell config
+    link_dotfile "$DEV_TOOLBOX/.bashrc"        "$HOME/.bashrc"
     link_dotfile "$DEV_TOOLBOX/.bash_profile"  "$HOME/.bash_profile"
+    link_dotfile "$DEV_TOOLBOX/.zshrc"         "$HOME/.zshrc"
+
+    # Starship prompt config → ~/.config/starship/starship.toml
+    mkdir -p "$HOME/.config/starship"
+    link_dotfile "$DEV_TOOLBOX/starship.toml"  "$HOME/.config/starship/starship.toml"
+
+    # Fastfetch config → ~/.config/fastfetch/config.jsonc
+    mkdir -p "$HOME/.config/fastfetch"
+    link_dotfile "$DEV_TOOLBOX/config.jsonc"   "$HOME/.config/fastfetch/config.jsonc"
 
     # Copy .bashrc.local if it exists in the toolbox (gitignored, user-specific)
     if [[ -f "$HOME/.bashrc.local" ]]; then
         success ".bashrc.local (already exists)"
+    elif is_dry_run; then
+        if [[ -f "$DEV_TOOLBOX/.bashrc.local" ]]; then
+            dry_step "copy .bashrc.local from toolbox to $HOME/.bashrc.local"
+        elif [[ -f "$DEV_TOOLBOX/.bashrc.local.example" ]]; then
+            dry_step "create $HOME/.bashrc.local from .bashrc.local.example template"
+        else
+            skipped ".bashrc.local (skipped — no .bashrc.local or template found)"
+        fi
     elif [[ -f "$DEV_TOOLBOX/.bashrc.local" ]]; then
         cp "$DEV_TOOLBOX/.bashrc.local" "$HOME/.bashrc.local"
         success ".bashrc.local (copied from toolbox)"
@@ -388,6 +419,8 @@ install_gitleaks() {
         return
     fi
 
+    if is_dry_run; then dry_step "install gitleaks v${latest_tag} from GitHub release"; return; fi
+
     url="https://github.com/gitleaks/gitleaks/releases/download/v${latest_tag}/gitleaks_${latest_tag}_${os}_${arch}.tar.gz"
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
@@ -432,6 +465,7 @@ install_tailscale() {
     fi
 
     if [[ "$PLATFORM" == "macos" ]]; then
+        if is_dry_run; then dry_step "brew install --cask tailscale"; return; fi
         if brew install --cask tailscale 2>/dev/null; then
             success "tailscale (installed)"
         else
@@ -441,6 +475,7 @@ install_tailscale() {
     fi
 
     # Linux: official install script
+    if is_dry_run; then dry_step "install tailscale via tailscale.com/install.sh"; return; fi
     if curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1; then
         success "tailscale (installed)"
     else
@@ -487,6 +522,7 @@ _install_fastfetch_deb() {
         failure "fastfetch (failed)"
         return
     fi
+    if is_dry_run; then dry_step "install fastfetch ${latest_tag} from GitHub release (.deb)"; return; fi
     local tmpdir
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
@@ -537,6 +573,8 @@ install_nerd_font() {
         return
     fi
 
+    if is_dry_run; then dry_step "install Nerd Font $font_name $latest_tag from GitHub release"; return; fi
+
     url="https://github.com/ryanoasis/nerd-fonts/releases/download/${latest_tag}/${font_name}.zip"
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
@@ -557,6 +595,8 @@ install_shell() {
     # Starship prompt
     if ! needs_install starship; then
         success "starship (already installed)"
+    elif is_dry_run; then
+        dry_step "install starship via starship.rs/install.sh"
     else
         if curl -fsSL https://starship.rs/install.sh | sh -s -- -y >/dev/null 2>&1; then
             success "starship (installed)"
@@ -580,6 +620,8 @@ install_languages() {
     export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     if [[ -s "$NVM_DIR/nvm.sh" ]] && [[ "$UPGRADE" == "false" ]]; then
         success "nvm (already installed)"
+    elif is_dry_run; then
+        dry_step "install nvm via nvm-sh/nvm install script"
     else
         local nvm_version
         nvm_version=$(curl -fsSL "https://api.github.com/repos/nvm-sh/nvm/releases/latest" \
@@ -597,6 +639,8 @@ install_languages() {
 
     if cmd_exists node && [[ "$UPGRADE" == "false" ]]; then
         success "node LTS (already installed — $(node --version))"
+    elif is_dry_run; then
+        dry_step "nvm install --lts"
     else
         if cmd_exists nvm; then
             if nvm install --lts >/dev/null 2>&1; then
@@ -641,6 +685,7 @@ install_awscli() {
     fi
 
     # Linux: official installer
+    if is_dry_run; then dry_step "install aws-cli v2 via awscli.amazonaws.com installer"; return; fi
     local tmpdir
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$tmpdir"; trap - RETURN' RETURN
@@ -670,6 +715,7 @@ install_azure_cli() {
     fi
 
     # Linux: Microsoft install script
+    if is_dry_run; then dry_step "install azure-cli via aka.ms/InstallAzureCLIDeb"; return; fi
     if curl -fsSL https://aka.ms/InstallAzureCLIDeb | sudo bash >/dev/null 2>&1; then
         success "azure-cli (installed)"
     else
@@ -688,6 +734,7 @@ install_wrangler() {
         return
     fi
 
+    if is_dry_run; then dry_step "npm install -g wrangler"; return; fi
     if npm install -g wrangler >/dev/null 2>&1; then
         success "wrangler (installed)"
     else
@@ -764,6 +811,7 @@ install_containers() {
     fi
 
     if [[ "$PLATFORM" == "macos" ]]; then
+        if is_dry_run; then dry_step "brew install --cask docker"; return; fi
         if brew install --cask docker 2>/dev/null; then
             success "docker desktop (installed)"
         else
@@ -773,6 +821,7 @@ install_containers() {
     fi
 
     # Linux: official install script
+    if is_dry_run; then dry_step "install docker via get.docker.com + add $USER to docker group"; return; fi
     if curl -fsSL https://get.docker.com | sudo sh >/dev/null 2>&1; then
         # Add current user to docker group
         sudo usermod -aG docker "$USER" 2>/dev/null || true
@@ -795,6 +844,7 @@ install_powershell() {
     fi
 
     if [[ "$PLATFORM" == "macos" ]]; then
+        if is_dry_run; then dry_step "brew install --cask powershell"; return; fi
         if brew install --cask powershell 2>/dev/null; then
             success "powershell (installed)"
         else
@@ -809,6 +859,7 @@ install_powershell() {
     # On non-amd64 (e.g. arm64/Apple Silicon VM) the Microsoft apt repo only
     # provides amd64 packages; use snap instead.
     if [[ "$arch" != "amd64" ]]; then
+        if is_dry_run; then dry_step "snap install powershell --classic"; return; fi
         if ! cmd_exists snap; then
             sudo apt install -y snapd >/dev/null 2>&1 || true
         fi
@@ -820,11 +871,12 @@ install_powershell() {
         return
     fi
 
+    if is_dry_run; then dry_step "register Microsoft apt repo and apt install powershell"; return; fi
     # amd64: register Microsoft package repo then install via apt
     if ! [[ -f /etc/apt/sources.list.d/microsoft-prod.list ]] && \
        ! [[ -f /etc/apt/sources.list.d/microsoft.list ]]; then
         local release_id release_version deb_url
-        source /etc/os-release
+        . /etc/os-release
         release_id="${ID}"
         release_version="${VERSION_ID}"
 
@@ -854,12 +906,15 @@ install_powershell() {
 main() {
     detect_platform
     msg "Platform: $PLATFORM ($PKG_MANAGER)" "bright_cyan"
+    if is_dry_run; then
+        msg "[DRY RUN] No changes will be made." "yellow"
+    fi
     printf '\n'
 
     # Update package index
     step "Updating package index..."
     pkg_update >/dev/null 2>&1
-    success "Package index updated"
+    if ! is_dry_run; then success "Package index updated"; fi
     printf '\n'
 
     # Run categories in dependency order
@@ -887,7 +942,9 @@ main() {
     msg "  Failed:    $COUNT_FAILED" "red"
     printf '\n'
 
-    if [[ $COUNT_FAILED -gt 0 ]]; then
+    if is_dry_run; then
+        msg "$SYM_SUCCESS Dry run complete — no changes were made." "bright_green"
+    elif [[ $COUNT_FAILED -gt 0 ]]; then
         msg "$SYM_WARNING Setup completed with $COUNT_FAILED failure(s)." "yellow"
     else
         msg "$SYM_SUCCESS Setup complete." "bright_green"

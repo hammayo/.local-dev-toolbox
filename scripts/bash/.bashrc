@@ -1,54 +1,73 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1091
-# ~/.bashrc - Team-reusable WSL bashrc
+# ~/.bashrc — Cross-platform interactive bash config (macOS · WSL · Ubuntu/Debian)
 # Personal overrides and secrets go in ~/.bashrc.local (sourced at the end)
 
 # Only for interactive shells
 [[ $- != *i* ]] && return
 
-# :: INIT ::     
+# ── PLATFORM ──────────────────────────────────────────────────────────────────
 
-# System defaults and completion
-[[ -f /etc/bashrc ]] && source /etc/bashrc
+_detect_platform() {
+    case "$(uname -s)" in
+        Darwin) echo "macos" ;;
+        Linux)
+            if grep -qi microsoft /proc/version 2>/dev/null; then echo "wsl"
+            elif [[ -f /etc/os-release ]]; then
+                # shellcheck disable=SC1091
+                . /etc/os-release
+                case "$ID" in
+                    ubuntu|debian|mint)                 echo "debian" ;;
+                    fedora|rhel|centos|rocky|almalinux) echo "redhat" ;;
+                    arch|manjaro|endeavouros)           echo "arch" ;;
+                    *)                                  echo "linux" ;;
+                esac
+            else echo "linux"
+            fi ;;
+        *) echo "unknown" ;;
+    esac
+}
+PLATFORM=$(_detect_platform)
+
+# ── INIT ──────────────────────────────────────────────────────────────────────
+
+[[ -f /etc/bashrc ]] && . /etc/bashrc
+
 if [[ -f /usr/share/bash-completion/bash_completion ]]; then
-    source /usr/share/bash-completion/bash_completion
+    . /usr/share/bash-completion/bash_completion
 elif [[ -f /etc/bash_completion ]]; then
-    source /etc/bash_completion
+    . /etc/bash_completion
+elif [[ "$PLATFORM" == "macos" ]] && command -v brew >/dev/null 2>&1; then
+    _brew_prefix=$(brew --prefix 2>/dev/null)
+    [[ -r "$_brew_prefix/etc/profile.d/bash_completion.sh" ]] && \
+        . "$_brew_prefix/etc/profile.d/bash_completion.sh"
+    unset _brew_prefix
 fi
 
-# Fast system info (use whichever is available)
+# System info on new shell (fastfetch > neofetch)
 if command -v fastfetch >/dev/null 2>&1; then
     fastfetch
 elif command -v neofetch >/dev/null 2>&1; then
     neofetch
 fi
 
-# :: SHELL OPTIONS ::     
+# ── SHELL OPTIONS ─────────────────────────────────────────────────────────────
 
-shopt -s checkwinsize histappend globstar
-bind "set bell-style none" 2>/dev/null
-bind "set completion-ignore-case on" 2>/dev/null
-bind "set show-all-if-ambiguous on" 2>/dev/null
-stty -ixon 2>/dev/null
+shopt -s checkwinsize histappend globstar 2>/dev/null
+bind "set bell-style none"            2>/dev/null
+bind "set completion-ignore-case on"  2>/dev/null
+bind "set show-all-if-ambiguous on"   2>/dev/null
+stty -ixon 2>/dev/null  # disable Ctrl+S/Q flow control
 
-# :: HISTORY ::     
+# ── HISTORY ───────────────────────────────────────────────────────────────────
 
-# Expand the history size
 export HISTFILESIZE=10000
 export HISTSIZE=500
-export HISTTIMEFORMAT="%F %T" # add timestamp to history
-
-# Don't put duplicate lines in the history and do not add lines that start with a space
+export HISTTIMEFORMAT="%F %T "
 export HISTCONTROL=erasedups:ignoredups:ignorespace
+PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }history -a"
 
-# Check the window size after each command and, if necessary, update the values of LINES and COLUMNS
-shopt -s checkwinsize
-
-# Causes bash to append to history instead of overwriting it so if you start a new terminal, you have old session history
-shopt -s histappend
-PROMPT_COMMAND='history -a'
-
-# :: ENV ::     
+# ── ENV ───────────────────────────────────────────────────────────────────────
 
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -59,7 +78,7 @@ export EDITOR="${EDITOR:-vim}"
 export VISUAL="${VISUAL:-$EDITOR}"
 export CLICOLOR=1
 
-# Coloured man pages / less
+# Coloured man pages
 export LESS_TERMCAP_mb=$'\e[1;31m'
 export LESS_TERMCAP_md=$'\e[1;31m'
 export LESS_TERMCAP_me=$'\e[0m'
@@ -67,13 +86,22 @@ export LESS_TERMCAP_se=$'\e[0m'
 export LESS_TERMCAP_so=$'\e[1;44;33m'
 export LESS_TERMCAP_ue=$'\e[0m'
 export LESS_TERMCAP_us=$'\e[1;32m'
+command -v bat >/dev/null 2>&1 && export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
-if command -v bat >/dev/null 2>&1; then
-    export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+# FZF
+if [[ -f "$HOME/.fzf.bash" ]]; then
+    . "$HOME/.fzf.bash"
+    export FZF_DEFAULT_COMMAND='fd --type f --strip-cwd-prefix --hidden --exclude .git'
+    export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 fi
 
-# Clipboard (WSL or native Linux)
-if command -v clip.exe >/dev/null 2>&1; then
+# Clipboard (platform-aware)
+if [[ "$PLATFORM" == "macos" ]]; then
+    alias copy='pbcopy'
+    alias paste='pbpaste'
+elif [[ "$PLATFORM" == "wsl" ]] && command -v clip.exe >/dev/null 2>&1; then
     alias copy='clip.exe'
     alias paste='powershell.exe -c Get-Clipboard'
 elif command -v wl-copy >/dev/null 2>&1; then
@@ -84,27 +112,13 @@ elif command -v xclip >/dev/null 2>&1; then
     alias paste='xclip -selection clipboard -o'
 fi
 
-# PATH consolidation
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+# ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
-# NVM
-export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-[[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"
-[[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
-
-# FZF integration
-if [[ -f "$HOME/.fzf.bash" ]]; then
-    source "$HOME/.fzf.bash"
-    export FZF_DEFAULT_COMMAND='fd --type f --strip-cwd-prefix --hidden --exclude .git'
-    export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-fi
-
-# :: FUNCTIONS ::     
-
-# Detect the Linux distribution family (debian, redhat, arch, suse) for distro-aware aliases
+# Detect Linux distribution family (used by distro-aware aliases)
 get_distro() {
     if [[ -f /etc/os-release ]]; then
-        source /etc/os-release
+        # shellcheck disable=SC1091
+        . /etc/os-release
         case "$ID" in
             fedora|rhel|centos|rocky|almalinux) echo "redhat" ;;
             ubuntu|debian|mint)                 echo "debian" ;;
@@ -117,20 +131,18 @@ get_distro() {
     fi
 }
 
-# List directory contents using the best available tool (eza > exa > lsd > ls)
+# Best available directory lister (eza > lsd > ls)
 _list_dir() {
     if command -v eza >/dev/null 2>&1; then
         eza --icons --group-directories-first
-    elif command -v exa >/dev/null 2>&1; then
-        exa --icons --group-directories-first
     elif command -v lsd >/dev/null 2>&1; then
         lsd --group-dirs=first --icon=auto
     else
-        ls -CF --color=auto
+        ls -CF
     fi
 }
 
-# Override cd to automatically list directory contents after changing directory
+# cd and list in one step
 cd() {
     if [[ $# -eq 0 ]]; then
         builtin cd ~ && _list_dir
@@ -139,15 +151,14 @@ cd() {
     fi
 }
 
-# Prompt the user for yes/no confirmation. Usage: prompt_continue "Continue?" && do_thing
+# Yes/no confirmation. Usage: prompt_continue "Continue?" && do_thing
 prompt_continue() {
-    local prompt_message="$1"
-    read -p "$prompt_message (y/n): " -n 1 -r
+    read -rp "$1 (y/n): " -n 1
     echo
     [[ $REPLY =~ ^[Yy]$ ]]
 }
 
-# Extract any common archive format. Usage: extract file.tar.gz [file2.zip ...]
+# Extract common archive formats. Usage: extract file.tar.gz [file2 ...]
 extract() {
     for file in "$@"; do
         if [[ -f "$file" ]]; then
@@ -164,7 +175,7 @@ extract() {
                 *.zip)     unzip "$file" ;;
                 *.Z)       uncompress "$file" ;;
                 *.7z)      7z x "$file" ;;
-                *)         echo "Unknown archive format: $file" ;;
+                *)         echo "Unknown archive: $file" ;;
             esac
         else
             echo "File not found: $file"
@@ -172,20 +183,29 @@ extract() {
     done
 }
 
-# Create a directory and cd into it in one step. Usage: mkcd my-project
-mkcd() { mkdir -p "$1" && cd "$1" || return; }
+mkcd()   { mkdir -p "$1" && cd "$1" || return; }           # mkdir then cd into it
+bak()    { cp -r "$1" "$1.bak"; }                          # create .bak copy
+up()     { local p="" i; for ((i=0; i<${1:-1}; i++)); do p+="../"; done; cd "$p" || return; }
+pwdtail(){ pwd | awk -F/ '{print $(NF-1)"/"$NF}'; }        # last two path components
 
-# Create a .bak copy of a file or directory. Usage: bak config.yml
-bak()  { cp -r "$1" "$1.bak"; }
-
-# Navigate up N parent directories. Usage: up 3 (goes up ../../..)
-up() {
-    local levels=${1:-1} path=""
-    for ((i=0; i<levels; i++)); do path="../$path"; done
-    cd "$path" || return
+# Internal + external IP
+myip() {
+    local iface internal
+    if [[ "$PLATFORM" == "macos" ]]; then
+        iface=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
+        internal=$(ipconfig getifaddr "$iface" 2>/dev/null)
+    else
+        iface=$(ip route 2>/dev/null | awk '/^default/{print $5; exit}')
+        internal=$(ip addr show "$iface" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1)
+    fi
+    echo "Internal: ${internal:-n/a}"
+    echo "External: $(curl -s ifconfig.me || echo n/a)"
 }
 
-# Search file contents recursively using rg (ripgrep) or grep. Usage: search_files "TODO"
+cpg() { cp "$1" "$2" && [[ -d "$2" ]] && cd "$2" || return; }   # copy + cd to dest dir
+mvg() { mv "$1" "$2" && [[ -d "$2" ]] && cd "$2" || return; }   # move + cd to dest dir
+
+# Search file contents. Usage: search_files "TODO"
 search_files() {
     if command -v rg >/dev/null 2>&1; then
         rg -n --color=always "$1" | less -R
@@ -194,168 +214,81 @@ search_files() {
     fi
 }
 
-# Show internal (LAN) and external (public) IP addresses
-myip() {
-    echo "Internal IP:"
-    ip route get 1.1.1.1 | awk '{print $7}' 2>/dev/null || echo "Not connected"
-    echo "External IP:"
-    curl -s ifconfig.me || echo "Unable to fetch"
-}
+# Quick git workflow
+gcom()   { git add . && git commit -m "$1"; }
+lazy()   { git add . && git commit -m "$1" && git push; }
+gclean() { git fetch -p; git branch --merged | grep -Ev '(^\*|main|master|dev)' | xargs -r git branch -d; }
 
-# IP address lookup 2
-alias myip2="whatsmyip"
-function whatsmyip () {
-    # Auto-detect the default network interface (works on Linux, macOS, WSL).
-    local iface
-    iface=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}')
-    [[ -z "$iface" ]] && iface=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
-
-    # Internal IP Lookup.
-    if command -v ip &> /dev/null && [[ -n "$iface" ]]; then
-        echo -n "Internal IP: "
-        ip addr show "$iface" | grep "inet " | awk '{print $2}' | cut -d/ -f1
-    elif command -v ifconfig &> /dev/null && [[ -n "$iface" ]]; then
-        echo -n "Internal IP: "
-        ifconfig "$iface" | grep "inet " | awk '{print $2}'
-    else
-        echo "Internal IP: (could not detect interface)"
-    fi
-
-    # External IP Lookup
-    echo -n "External IP: "
-    curl -4 ifconfig.me
-}
-
-# Copy file with a progress bar
-cpp() {
-    set -e
-    strace -q -ewrite cp -- "${1}" "${2}" 2>&1 |
-    awk '{
-        count += $NF
-        if (count % 10 == 0) {
-            percent = count / total_size * 100
-            printf "%3d%% [", percent
-            for (i=0;i<=percent;i++)
-                printf "="
-            printf ">"
-            for (i=percent;i<100;i++)
-                printf " "
-            printf "]\r"
-        }
-    }
-    END { print "" }' total_size="$(stat -c '%s' "${1}")" count=0
-}
-
-# Copy and go to the directory
-cpg() {
-	if [ -d "$2" ]; then
-		cp "$1" "$2" && cd "$2"
-	else
-		cp "$1" "$2"
-	fi
-}
-
-# Move and go to the directory
-mvg() {
-	if [ -d "$2" ]; then
-		mv "$1" "$2" && cd "$2"
-	else
-		mv "$1" "$2"
-	fi
-}
-
-# Quick git commit: stage all and commit with message. Usage: gcom "fix typo"
-gcom()  { git add . && git commit -m "$1"; }
-
-# Quick git commit and push in one go. Usage: lazy "quick fix"
-lazy()  { git add . && git commit -m "$1" && git push; }
-
-# Prune remote-tracking refs and delete local branches already merged into current branch
-gclean() {
-    git fetch -p
-    git branch --merged | grep -E -v '(^\*|main|master|dev)' | xargs -r git branch -d
-}
-
-# Look up a command cheatsheet from cht.sh. Usage: cheat curl, cheat python/lambda
+# Command cheatsheet. Usage: cheat curl
 cheat() { curl -s "cht.sh/$1"; }
 
 # FZF-powered interactive functions (require fzf + fd)
 if command -v fzf >/dev/null 2>&1; then
-    # Fuzzy-find and open a file in your editor. Usage: fe [query]
-    fe() {
-        local file
-        file=$(fd --type f --hidden --exclude .git | fzf --query="$1" --select-1 --exit-0)
-        [[ -n "$file" ]] && ${EDITOR:-vim} "$file"
-    }
-
-    # Fuzzy-find and cd into a directory. Usage: fcd [query]
-    fcd() {
-        local dir
-        dir=$(fd --type d --hidden --exclude .git | fzf --query="$1" --select-1 --exit-0)
-        [[ -n "$dir" ]] && cd "$dir"
-    }
-
-    # Fuzzy-find and kill a running process. Usage: fkill [signal]
-    fkill() {
-        local pid
-        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-        [[ -n "$pid" ]] && echo "$pid" | xargs kill -"${1:-9}"
-    }
-
-    # Fuzzy-find and preview a file with bat syntax highlighting. Usage: fshow [query]
-    fshow() {
-        local file
-        file=$(fd --type f --hidden --exclude .git | fzf --query="$1" --select-1 --exit-0 \
-            --preview "bat --color=always --style=numbers --line-range=:500 {}")
-        [[ -n "$file" ]] && bat "$file"
-    }
+    fe()    { local f; f=$(fd --type f --hidden --exclude .git | fzf --query="${1:-}" --select-1 --exit-0) && ${EDITOR:-vim} "$f"; }
+    fcd()   { local d; d=$(fd --type d --hidden --exclude .git | fzf --query="${1:-}" --select-1 --exit-0) && cd "$d"; }
+    fkill() { local p; p=$(ps -ef | sed 1d | fzf -m | awk '{print $2}') && echo "$p" | xargs kill -"${1:-9}"; }
+    fshow() { local f; f=$(fd --type f --hidden --exclude .git | fzf --query="${1:-}" --select-1 --exit-0 \
+                  --preview "bat --color=always --style=numbers --line-range=:500 {}") && bat "$f"; }
 fi
 
-# Automatically do an ls after each cd, z, or zoxide
-cd ()
-{
-	if [ -n "$1" ]; then
-		builtin cd "$@" && ls
-	else
-		builtin cd ~ && ls
-	fi
+# Switch the active Starship prompt theme.
+# Usage: starship-theme [theme-name]
+# No args: list available themes. With name: apply that theme.
+starship-theme() {
+    if [[ -z "${DEV_TOOLBOX:-}" ]]; then
+        echo "Error: DEV_TOOLBOX is not set. Run setup-distro.sh --only=dotfiles first." >&2
+        return 1
+    fi
+    local themes_dir="$DEV_TOOLBOX/.config/starship"
+    if [[ ! -d "$themes_dir" ]]; then
+        echo "Error: themes directory not found: $themes_dir" >&2
+        return 1
+    fi
+    if [[ $# -eq 0 ]]; then
+        echo "Available themes:"
+        for f in "$themes_dir"/*.toml; do
+            [[ -f "$f" ]] && echo "  $(basename "${f%.toml}")"
+        done
+        echo ""
+        echo "Usage: starship-theme <theme-name>"
+        return 0
+    fi
+    local src="$themes_dir/${1}.toml"
+    if [[ ! -f "$src" ]]; then
+        echo "Error: theme '$1' not found. Run 'starship-theme' with no args to list available themes." >&2
+        return 1
+    fi
+    local dest="${STARSHIP_CONFIG:-$HOME/.config/starship/starship.toml}"
+    cp "$src" "$dest" && echo "Starship theme set to '$1' → $dest"
 }
 
-# Returns the last 2 fields of the working directory
-pwdtail() {
-	pwd | awk -F/ '{nlast = NF -1;print $nlast"/"$NF}'
-}
+# ── ALIASES ───────────────────────────────────────────────────────────────────
 
+# Navigation
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias ~='cd ~'
 
+# System
+alias c='clear'
+alias cls='clear'
+alias h='history'
+alias j='jobs -l'
+alias path='echo -e "${PATH//:/\\n}"'
+alias now='date "+%Y-%m-%d %A %T %Z"'
+alias reload='source ~/.bashrc'
+alias please='sudo $(fc -ln -1)'
+alias pathadd='export PATH="$PWD:$PATH" && echo "$PATH"'
 
-# :: ALIASES ::     
+# File ops (safe defaults)
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -i'
+alias mkdir='mkdir -pv'
+command -v trash >/dev/null 2>&1 && alias rm='trash'
 
-# Navigation — shorthand for jumping up directories
-alias ..='cd ..'                # up one level
-alias ...='cd ../..'            # up two levels
-alias ....='cd ../../..'        # up three levels
-alias ~='cd ~'                  # home directory
-
-# System — common shell shortcuts
-alias c='clear'                                           # clear the terminal
-alias cls='clear'                                         # clear (Windows muscle memory)
-alias h='history'                                         # show command history
-alias j='jobs -l'                                         # list background jobs with PIDs
-alias path='echo -e "${PATH//:/\\n}"'                     # print PATH entries one per line
-alias now='date +"%T"'                                    # current time (HH:MM:SS)
-alias nowdate='date +"%d-%m-%Y"'                          # current date (DD-MM-YYYY)
-alias reload='source ~/.bashrc'                           # reload this bashrc without restarting
-alias please='sudo $(fc -ln -1)'                          # re-run last command with sudo
-alias pathadd='export PATH="$PWD:$PATH" && echo "$PATH"'  # add current dir to PATH
-
-# File ops — safe defaults (prompt before overwriting)
-alias cp='cp -i'                                          # confirm before overwrite
-alias mv='mv -i'                                          # confirm before overwrite
-alias rm='rm -i'                                          # confirm before delete
-alias mkdir='mkdir -pv'                                   # create parents, show what was made
-command -v trash >/dev/null 2>&1 && alias rm='trash'      # use trash-cli instead of rm if available
-
-# Listing — auto-detect best tool: ls=all files, l=short, la=all, ll=long, lt=tree
+# Listing (eza > lsd > ls)
 if command -v eza >/dev/null 2>&1; then
     alias ls='eza -a -1 --icons --group-directories-first'
     alias l='eza -1 --icons --group-directories-first'
@@ -369,40 +302,65 @@ elif command -v lsd >/dev/null 2>&1; then
     alias ll='lsd -l --group-dirs=first --icon=auto --blocks date,name --date "+%Y-%m-%d %H:%M"'
     alias lt='lsd --tree --depth 2 --group-dirs=first --icon=auto'
 else
-    alias ls='ls --color=auto -F'
+    # Fallback: GNU ls (Linux/WSL) uses --color; BSD ls (macOS) uses -G
+    if ls --color=auto /dev/null 2>/dev/null; then
+        alias ls='ls --color=auto -F'
+    else
+        alias ls='ls -GF'
+    fi
     alias ll='ls -alF'
     alias la='ls -A'
     alias l='ls -1F'
     alias lt='ls -ltr'
 fi
-alias dir='ls -laht'                                      # detailed listing sorted by time
-alias tree='tree -C'                                      # colourised tree view
-
-# Text/IO — colourised grep (skips common build dirs), bat as cat replacement
-alias grep='grep --color=auto --exclude-dir={.git,node_modules,vendor,build,dist}'
-command -v bat >/dev/null 2>&1 && alias cat='bat'         # syntax-highlighted file viewer
-
-# Archives — quick extract/compress shortcuts
-alias untar='tar -xvf'                                    # extract a tarball
-alias targz='tar -czvf'                                   # create a .tar.gz archive
-
-# Monitoring — human-readable system info
-alias df='df -h'                                          # disk usage (human-readable)
-alias du='du -h'                                          # directory size (human-readable)
-alias free='free -h'                                      # memory usage (human-readable)
-alias ps='ps auxf'                                        # all processes as a tree
-alias psg='ps aux | grep'                                 # search running processes
-command -v htop >/dev/null 2>&1 && alias top='htop'       # interactive process viewer
-if command -v netstat >/dev/null 2>&1; then
-    alias ports='netstat -tulanp'                         # show listening ports
+if [[ "$PLATFORM" == "macos" ]]; then
+    alias dir='\ls -lahGt'           # BSD ls: -G enables colour
 else
-    command -v ss >/dev/null 2>&1 && alias ports='ss -tulpen'
+    alias dir='\ls -laht --color=auto'  # GNU ls
+fi
+alias tree='tree -C'
+
+# Text/IO
+alias grep='grep --color=auto --exclude-dir={.git,node_modules,vendor,build,dist}'
+command -v bat >/dev/null 2>&1 && alias cat='bat'
+
+# Archives
+alias untar='tar -xvf'
+alias targz='tar -czvf'
+
+# Monitoring
+alias df='df -h'
+alias du='du -h'
+[[ "$PLATFORM" != "macos" ]] && alias free='free -h'
+alias ps='ps auxf'
+alias psg='ps aux | grep'
+command -v htop >/dev/null 2>&1 && alias top='htop'
+
+# Ports (platform-aware)
+if command -v netstat >/dev/null 2>&1; then
+    if [[ "$PLATFORM" == "macos" ]]; then
+        alias ports='netstat -anp tcp | grep LISTEN'
+    else
+        alias ports='netstat -tulanp'
+    fi
+elif command -v ss >/dev/null 2>&1; then
+    alias ports='ss -tulpen'
 fi
 
-# Package management (distro-aware)
-DISTRO=$(get_distro)
-case "$DISTRO" in
-    debian)
+# Networking
+alias ping='ping -c 5'
+alias wget='wget -c'
+alias serve='python3 -m http.server 8000'
+
+# Package management (platform-aware)
+case "$PLATFORM" in
+    macos)
+        alias install='brew install'
+        alias update='brew update && brew upgrade'
+        alias search='brew search'
+        alias remove='brew uninstall'
+        ;;
+    debian|wsl)
         alias install='sudo apt install'
         alias update='sudo apt update && sudo apt full-upgrade'
         alias search='apt search'
@@ -422,78 +380,58 @@ case "$DISTRO" in
         ;;
 esac
 
-# Git — common workflow shortcuts
-alias g='git'                                             # shorthand for git
-alias gs='git status'                                     # working tree status
-alias gst='git status -sb'                                # short status with branch
-alias ga='git add'                                        # stage files
-alias gc='git commit'                                     # commit staged changes
-alias gp='git push'                                       # push to remote
-alias gl='git log --oneline'                              # compact log
-alias gd='git diff'                                       # show unstaged changes
-alias gco='git checkout'                                  # switch branch or restore files
-alias gb='git branch --all'                               # list all branches
-alias ggraph='git log --graph --decorate --oneline --all' # visual branch graph
-alias gamend='git commit --amend --no-edit'               # amend last commit (keep message)
-alias gca='git commit --amend'                            # amend last commit (edit message)
-alias gcp='git cherry-pick'                               # apply a commit from another branch
-alias gprune='git fetch --prune'                          # remove stale remote-tracking refs
-alias guncommit='git reset --soft HEAD~1'                 # undo last commit, keep changes staged
+# Git
+alias g='git'
+alias gs='git status'
+alias gst='git status -sb'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline'
+alias gd='git diff'
+alias gco='git checkout'
+alias gb='git branch --all'
+alias ggraph='git log --graph --decorate --oneline --all'
+alias gamend='git commit --amend --no-edit'
+alias gca='git commit --amend'
+alias gcp='git cherry-pick'
+alias gprune='git fetch --prune'
+alias guncommit='git reset --soft HEAD~1'
 
-# Docker — container management shortcuts
-alias d='docker'                                          # shorthand for docker
-alias dc='docker compose'                                 # shorthand for docker compose
-alias dps='docker ps'                                     # list running containers
-alias di='docker images'                                  # list local images
-alias dclean='docker system prune -af'                    # remove all unused images/containers
-alias dcu='docker compose up -d'                          # start services in background
-alias dcd='docker compose down'                           # stop and remove services
-alias dcb='docker compose build'                          # build service images
-alias dcl='docker compose logs -f'                        # follow service logs
-alias dexec='docker exec -it'                             # exec into a running container
+# Docker
+alias d='docker'
+alias dc='docker compose'
+alias dps='docker ps'
+alias di='docker images'
+alias dclean='docker system prune -af'
+alias dcu='docker compose up -d'
+alias dcd='docker compose down'
+alias dcb='docker compose build'
+alias dcl='docker compose logs -f'
+alias dexec='docker exec -it'
 
-# Networking — sensible defaults for common network tools
-alias ping='ping -c 5'                                    # limit to 5 pings by default
-alias wget='wget -c'                                      # resume partial downloads
-alias curl='curl -L'                                      # follow redirects automatically
-alias ippublic='curl -s https://ifconfig.me'              # show public IP address
-alias serve='python3 -m http.server 8000'                 # quick local HTTP server on port 8000
+# ── KEYBINDINGS ───────────────────────────────────────────────────────────────
 
-# Alias for long running commands. Use like so: $> `sleep 10; alert`
-alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+bind '"\C-f":"zi\n"' 2>/dev/null  # Ctrl+F → zoxide interactive
 
-alias now='date "+%Y-%m-%d %A %T %Z"'
-alias hug="systemctl --user restart hugo"
-alias lanm="systemctl --user restart lan-mouse"
+# ── PROMPT / ENHANCEMENTS ─────────────────────────────────────────────────────
 
-# :: KEYBINDINGS ::     
-
-# Ctrl+F — invoke zoxide interactive (zi) for fuzzy directory jumping
-bind '"\C-f":"zi\n"' 2>/dev/null
-
-# :: PROMPT / ENHANCEMENTS ::     
-
-# Starship — cross-shell customisable prompt (https://starship.rs)
 export STARSHIP_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/starship/starship.toml"
 command -v starship >/dev/null 2>&1 && eval "$(starship init bash)"
+command -v zoxide  >/dev/null 2>&1 && eval "$(zoxide init bash)"
 
-# Zoxide — smarter cd that learns your most-used directories (https://github.com/ajeetdsouza/zoxide)
-command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init bash)"
-
-# :: EXTERNAL ::     
+# ── EXTERNAL ──────────────────────────────────────────────────────────────────
 
 [[ -f "$HOME/.local/bin/env" ]] && . "$HOME/.local/bin/env"
-[[ -f "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
-[[ -f "$HOME/.deno/env" ]] && . "$HOME/.deno/env"
+[[ -f "$HOME/.cargo/env"     ]] && . "$HOME/.cargo/env"
+[[ -f "$HOME/.deno/env"      ]] && . "$HOME/.deno/env"
 
-# Deno completion
 [[ -f "$HOME/.local/share/bash-completion/completions/deno.bash" ]] && \
-    source "$HOME/.local/share/bash-completion/completions/deno.bash"
+    . "$HOME/.local/share/bash-completion/completions/deno.bash"
 
-# Bash aliases file (if maintained separately)
 [[ -f ~/.bash_aliases ]] && . ~/.bash_aliases
 
-# :: LOCAL OVERRIDES ::     
+# ── LOCAL OVERRIDES ───────────────────────────────────────────────────────────
 
 # Personal settings, secrets, API tokens, and machine-specific config
 [[ -f ~/.bashrc.local ]] && . ~/.bashrc.local

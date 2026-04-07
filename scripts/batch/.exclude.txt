@@ -33,5 +33,3 @@ TestResults
 *.suo
 *.ds_store
 thumbs.db
-OPTService - Moved to LRM repo\
-OPT.Common - Moved to LRM repo\

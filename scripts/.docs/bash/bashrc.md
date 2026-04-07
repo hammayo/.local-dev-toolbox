@@ -88,8 +88,8 @@ The file is organised into clearly marked sections, loaded in this order:
 
 | Setting | Value | Purpose |
 |---------|-------|---------|
-| `HISTSIZE` | 10,000 | Commands kept in memory |
-| `HISTFILESIZE` | 20,000 | Lines kept in `~/.bash_history` |
+| `HISTSIZE` | 500 | Commands kept in memory |
+| `HISTFILESIZE` | 10,000 | Lines kept in `~/.bash_history` |
 | `HISTTIMEFORMAT` | `%F %T ` | Timestamps on every entry |
 | `HISTCONTROL` | `erasedups:ignoredups:ignorespace` | No duplicates; space-prefixed commands are private |
 | `PROMPT_COMMAND` | `history -a` | Write history after every command (no lost history on crash) |
@@ -120,7 +120,7 @@ The file is organised into clearly marked sections, loaded in this order:
 | `myip` | `myip` | Show internal (LAN) and external (public) IP addresses |
 | `cheat` | `cheat curl` or `cheat python/lambda` | Look up a command cheatsheet from cht.sh |
 | `get_distro` | (internal) | Detect Linux distro family for package management aliases |
-| `_list_dir` | (internal) | List directory with best available tool (eza > exa > lsd > ls) |
+| `_list_dir` | (internal) | List directory with best available tool (eza > lsd > ls) |
 
 ### Git Functions
 
@@ -160,8 +160,7 @@ These are only available when `fzf` and `fd` are installed.
 | `h` | `history` | Show command history |
 | `j` | `jobs -l` | List background jobs with PIDs |
 | `path` | (special) | Print PATH entries, one per line |
-| `now` | `date +"%T"` | Current time |
-| `nowdate` | `date +"%d-%m-%Y"` | Current date |
+| `now` | `date "+%Y-%m-%d %A %T %Z"` | Current date and time |
 | `reload` | `source ~/.bashrc` | Reload bashrc without restarting |
 | `please` | `sudo $(fc -ln -1)` | Re-run last command with sudo |
 | `pathadd` | (special) | Add current directory to PATH |
@@ -268,8 +267,6 @@ Distro-aware aliases that adapt automatically:
 |-------|-----------|-------------|
 | `ping` | `ping -c 5` | Limit to 5 pings |
 | `wget` | `wget -c` | Resume partial downloads |
-| `curl` | `curl -L` | Follow redirects |
-| `ippublic` | `curl -s https://ifconfig.me` | Show public IP address |
 | `serve` | `python3 -m http.server 8000` | Quick local HTTP server on port 8000 |
 
 ## Keybindings
@@ -281,6 +278,8 @@ Distro-aware aliases that adapt automatically:
 ## Prompt and Enhancements
 
 - **Starship** -- cross-shell customisable prompt. Config read from `$XDG_CONFIG_HOME/starship/starship.toml`.
+- Config -- `starship preset gruvbox-rainbow -o ~/.config/starship.toml`
+- Preset Profiles -- `.config/starship/*.toml`
 - **Zoxide** -- smarter `cd` that learns your most-used directories. Use `z <partial>` to jump, or `Ctrl+F` for interactive selection.
 
 ## External Integrations

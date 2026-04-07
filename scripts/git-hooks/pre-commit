@@ -17,8 +17,17 @@ if ! command -v gitleaks &>/dev/null; then
     exit 0
 fi
 
+# Resolve config path relative to repo root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CONFIG="$REPO_ROOT/scripts/git-hooks/.gitleaks.toml"
+
+if [[ ! -f "$CONFIG" ]]; then
+    echo "Warning: .gitleaks.toml not found at $CONFIG. Running with default rules."
+    CONFIG=""
+fi
+
 # Run gitleaks against staged changes only
-gitleaks git --pre-commit --staged --verbose
+gitleaks git --pre-commit --staged --verbose ${CONFIG:+--config "$CONFIG"}
 
 exit_code=$?
 

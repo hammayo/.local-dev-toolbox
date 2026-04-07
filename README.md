@@ -95,7 +95,7 @@ This will:
 
 1. **Symlink** `~/.bashrc` and `~/.bash_profile` to the toolbox versions — changes to the repo are reflected automatically in the shell.
 2. **Copy** `.bashrc.local` from the toolbox to `~/.bashrc.local` (personal config with secrets, not symlinked). Falls back to `.bashrc.local.example` if no `.bashrc.local` exists.
-3. **Install** all dev tools across 8 categories (core, cli, shell, languages, cloud, web, containers, powershell).
+3. **Install** all dev tools across 9 categories (dotfiles, core, cli, shell, languages, cloud, web, containers, powershell).
 4. Set `DEV_TOOLBOX` to the toolbox bash scripts path, adding it to `PATH`.
 
 After the bootstrap completes, reload the shell: `source ~/.bashrc`
