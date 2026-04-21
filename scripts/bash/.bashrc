@@ -417,6 +417,11 @@ bind '"\C-f":"zi\n"' 2>/dev/null  # Ctrl+F → zoxide interactive
 # ── PROMPT / ENHANCEMENTS ─────────────────────────────────────────────────────
 
 export STARSHIP_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/starship/starship.toml"
+# Apply Gruvbox Rainbow preset on first run (skipped if config already exists)
+if [[ ! -f "$STARSHIP_CONFIG" ]] && command -v starship >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$STARSHIP_CONFIG")"
+    starship preset gruvbox-rainbow -o "$STARSHIP_CONFIG" 2>/dev/null || true
+fi
 command -v starship >/dev/null 2>&1 && eval "$(starship init bash)"
 command -v zoxide  >/dev/null 2>&1 && eval "$(zoxide init bash)"
 

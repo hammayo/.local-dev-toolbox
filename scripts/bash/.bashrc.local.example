@@ -9,6 +9,12 @@
 #
 # Replace every <placeholder> with your own value before use.
 
+# :: GITHUB ::
+export GITHUB_PERSONAL_ACCESS_TOKEN="<your-github-pat>"
+
+# :: ANTHROPIC / CLAUDE CODE ::
+export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
+
 # :: CLAUDE CODE / AWS BEDROCK ::
 # AWS_PROFILE: the named profile in ~/.aws/config for Bedrock access.
 export AWS_PROFILE="<your-aws-bedrock-profile>"

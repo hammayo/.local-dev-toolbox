@@ -490,7 +490,7 @@ install_tailscale() {
 install_cli() {
     step "Installing CLI tools..."
 
-    local tools=(bat ripgrep fzf zoxide fastfetch htop)
+    local tools=(bat ripgrep fzf zoxide fastfetch htop gh)
     for tool in "${tools[@]}"; do
         local cmd="$tool"
         [[ "$tool" == "ripgrep" ]] && cmd="rg"
@@ -505,6 +505,8 @@ install_cli() {
             success "$tool (installed)"
         elif [[ "$tool" == "fastfetch" && "$PLATFORM" == "debian" ]]; then
             _install_fastfetch_deb
+        elif [[ "$tool" == "gh" && "$PLATFORM" == "debian" ]]; then
+            _install_gh_deb
         else
             failure "$tool (failed)"
         fi
@@ -532,6 +534,25 @@ _install_fastfetch_deb() {
         success "fastfetch (installed)"
     else
         failure "fastfetch (failed)"
+    fi
+}
+
+# gh fallback: add official GitHub CLI apt repo (not in default Ubuntu/Debian repos)
+_install_gh_deb() {
+    if is_dry_run; then dry_step "add GitHub CLI apt repo and apt install gh"; return; fi
+    local keyring="/usr/share/keyrings/githubcli-archive-keyring.gpg"
+    local list="/etc/apt/sources.list.d/github-cli.list"
+
+    if curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+           | sudo dd of="$keyring" 2>/dev/null \
+        && sudo chmod go+r "$keyring" \
+        && echo "deb [arch=$(dpkg --print-architecture) signed-by=${keyring}] https://cli.github.com/packages stable main" \
+           | sudo tee "$list" >/dev/null \
+        && sudo apt update >/dev/null 2>&1 \
+        && sudo apt install -y gh >/dev/null 2>&1; then
+        success "gh (installed)"
+    else
+        failure "gh (failed)"
     fi
 }
 

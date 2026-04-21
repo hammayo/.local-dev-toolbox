@@ -392,6 +392,11 @@ bindkey '^F' _zi_widget
 # ── PROMPT / ENHANCEMENTS ─────────────────────────────────────────────────────
 
 export STARSHIP_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/starship/starship.toml"
+# Apply Gruvbox Rainbow preset on first run (skipped if config already exists)
+if [[ ! -f "$STARSHIP_CONFIG" ]] && command -v starship >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$STARSHIP_CONFIG")"
+    starship preset gruvbox-rainbow -o "$STARSHIP_CONFIG" 2>/dev/null || true
+fi
 command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
 command -v zoxide  >/dev/null 2>&1 && eval "$(zoxide init zsh)"
 
@@ -405,3 +410,4 @@ command -v zoxide  >/dev/null 2>&1 && eval "$(zoxide init zsh)"
 
 # Personal settings, secrets, API tokens, and machine-specific config
 [[ -f ~/.zshrc.local ]] && . ~/.zshrc.local
+export PATH="$HOME/.bun/bin:$PATH"
