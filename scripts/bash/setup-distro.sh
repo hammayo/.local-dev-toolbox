@@ -4,12 +4,28 @@
 set -euo pipefail
 
 # -------------------------------------------------------------------------
-# Status symbols (Unicode)
-SYM_SUCCESS=$'\u2705'           # ✅
-SYM_FAILED=$'\U0001F534'        # 🔴
-SYM_SKIPPED=$'\u23ED\uFE0F'     # ⏭️
-SYM_STEP=$'\u25B6\uFE0F'        # ▶️
-SYM_WARNING=$'\u26A0\uFE0F'     # ⚠️
+# Unicode support detection
+# $'\xNN' hex bytes work in bash 3.2+ but rendering requires a UTF-8 locale.
+# Minimal servers / Docker containers often have LANG=C — fall back to ASCII.
+_locale_is_utf8() {
+    local loc="${LANG:-}${LC_ALL:-}${LC_CTYPE:-}"
+    [[ "$loc" =~ [Uu][Tt][Ff]-?8 ]]
+}
+
+# Status symbols
+if _locale_is_utf8; then
+    SYM_SUCCESS=$'\xe2\x9c\x85'                 # ✅
+    SYM_FAILED=$'\xf0\x9f\x94\xb4'              # 🔴
+    SYM_SKIPPED=$'\xe2\x8f\xad\xef\xb8\x8f'     # ⏭️
+    SYM_STEP=$'\xe2\x96\xb6\xef\xb8\x8f'        # ▶️
+    SYM_WARNING=$'\xe2\x9a\xa0\xef\xb8\x8f'     # ⚠️
+else
+    SYM_SUCCESS="[OK]  "
+    SYM_FAILED="[FAIL]"
+    SYM_SKIPPED="[SKIP]"
+    SYM_STEP="[>>]  "
+    SYM_WARNING="[WARN]"
+fi
 
 # ANSI colour codes
 C_RESET=$'\033[0m'
@@ -866,10 +882,10 @@ install_powershell() {
 
     if [[ "$PLATFORM" == "macos" ]]; then
         if is_dry_run; then dry_step "brew install --cask powershell"; return; fi
-        if brew install --cask powershell 2>/dev/null; then
+        if brew install --cask powershell >/dev/null 2>&1; then
             success "powershell (installed)"
         else
-            failure "powershell (failed)"
+            skipped "powershell (skipped — cask unavailable; install manually: brew install --cask powershell)"
         fi
         return
     fi

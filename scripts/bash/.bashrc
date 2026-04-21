@@ -6,6 +6,16 @@
 # Only for interactive shells
 [[ $- != *i* ]] && return
 
+# On macOS, re-exec with Homebrew bash if running system bash 3.x
+# System bash lacks Unicode prompt escaping and $'\uXXXX' support needed for Nerd Fonts.
+if [[ "$(uname -s)" == "Darwin" && "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    _brew_bash="/opt/homebrew/bin/bash"
+    if [[ -x "$_brew_bash" && "$BASH" != "$_brew_bash" ]]; then
+        exec "$_brew_bash" --login
+    fi
+    unset _brew_bash
+fi
+
 # ── PLATFORM ──────────────────────────────────────────────────────────────────
 
 _detect_platform() {
