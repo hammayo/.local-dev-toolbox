@@ -367,8 +367,9 @@ install_dotfiles() {
     link_dotfile "$DEV_TOOLBOX/.zshrc"         "$HOME/.zshrc"
 
     # Starship prompt config → ~/.config/starship/starship.toml
+    # Deploys the hammy-toolbox theme as the active config; theme library stays in $DEV_TOOLBOX/.config/starship/
     mkdir -p "$HOME/.config/starship"
-    link_dotfile "$DEV_TOOLBOX/starship.toml"  "$HOME/.config/starship/starship.toml"
+    link_dotfile "$DEV_TOOLBOX/.config/starship/hammy-toolbox.toml"  "$HOME/.config/starship/starship.toml"
 
     # Fastfetch config → ~/.config/fastfetch/config.jsonc
     mkdir -p "$HOME/.config/fastfetch"
@@ -394,6 +395,24 @@ install_dotfiles() {
         success ".bashrc.local (created from template — edit with: nano ~/.bashrc.local)"
     else
         skipped ".bashrc.local (skipped — no .bashrc.local or template found)"
+    fi
+
+    # Copy ~/.secrets if a local copy exists in the toolbox (gitignored, credentials file)
+    # Never symlinked — always a plain copy so it stays local to this machine.
+    if [[ -f "$HOME/.secrets" ]]; then
+        success ".secrets (already exists at $HOME/.secrets)"
+    elif is_dry_run; then
+        if [[ -f "$DEV_TOOLBOX/.secrets" ]]; then
+            dry_step "copy .secrets from toolbox to $HOME/.secrets (chmod 600)"
+        else
+            skipped ".secrets (skipped — create $HOME/.secrets manually with chmod 600)"
+        fi
+    elif [[ -f "$DEV_TOOLBOX/.secrets" ]]; then
+        cp "$DEV_TOOLBOX/.secrets" "$HOME/.secrets"
+        chmod 600 "$HOME/.secrets"
+        success ".secrets (copied from toolbox — permissions set to 600)"
+    else
+        skipped ".secrets (not found in toolbox — create $HOME/.secrets manually: touch ~/.secrets && chmod 600 ~/.secrets)"
     fi
 
     msg "  DEV_TOOLBOX=$DEV_TOOLBOX" "cyan"

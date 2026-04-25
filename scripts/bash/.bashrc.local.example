@@ -1,73 +1,143 @@
 #!/usr/bin/env bash
-# ~/.bashrc.local - Personal overrides (DO NOT commit secrets to version control)
+# ~/.bashrc.local — Personal overrides, machine-specific config, and secret references.
 #
 # Created automatically by setup-distro.sh, or copy manually:
 #   cp "$DEV_TOOLBOX/.bashrc.local.example" ~/.bashrc.local
 #
-# This file is sourced at the end of .bashrc, so anything here takes precedence.
-# It is gitignored and should never be committed.
+# This file is sourced at the end of .bashrc so anything here takes precedence.
+# It is gitignored and must never be committed.
 #
-# Replace every <placeholder> with your own value before use.
+# SECRETS: do not hardcode tokens or passwords here.
+# Store them in ~/.secrets (chmod 600) and source that file below.
 
-# :: GITHUB ::
-export GITHUB_PERSONAL_ACCESS_TOKEN="<your-github-pat>"
+# ── SECRETS ───────────────────────────────────────────────────────────────────
+# Keep all tokens/passwords in a separate file with restricted permissions:
+#   touch ~/.secrets && chmod 600 ~/.secrets
+#
+# ~/.secrets should export each variable, e.g.:
+#   export GITHUB_PERSONAL_ACCESS_TOKEN="ghp_..."
+#   export ANTHROPIC_API_KEY="sk-ant-..."
+#   export AZURE_DEVOPS_PAT="..."
+#   export ATLASSIAN_API_TOKEN="..."
+#
+[[ -f "$HOME/.secrets" ]] && source "$HOME/.secrets"
 
-# :: ANTHROPIC / CLAUDE CODE ::
-export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
+# ── GITHUB ────────────────────────────────────────────────────────────────────
+# export GITHUB_PERSONAL_ACCESS_TOKEN — set in ~/.secrets
 
-# :: CLAUDE CODE / AWS BEDROCK ::
+# ── ANTHROPIC / CLAUDE CODE ───────────────────────────────────────────────────
+# export ANTHROPIC_API_KEY — set in ~/.secrets
+
+# ── AWS / CLAUDE BEDROCK ──────────────────────────────────────────────────────
 # AWS_PROFILE: the named profile in ~/.aws/config for Bedrock access.
 export AWS_PROFILE="<your-aws-bedrock-profile>"
 export AWS_REGION=us-east-1
 export AWS_DEFAULT_REGION=us-east-1
-export CLAUDE_CODE_USE_BEDROCK=1
-
-# WSL: derive the Windows username from the Linux $USER or set it explicitly.
-# On WSL the Windows username is usually available at /mnt/c/Users/<winuser>.
-WIN_USER="${WIN_USER:-$USER}"   # override WIN_USER if your Windows name differs
+export CLAUDE_CODE_USE_BEDROCK=0   # set to 1 to route Claude Code through Bedrock
 
 if prompt_continue "Run aws sso login session?"; then
-    # WSL: point BROWSER at your preferred Windows browser.
-    # Common paths (uncomment the one that matches):
+    # WSL: point BROWSER at your preferred Windows browser (uncomment one):
     # export BROWSER='/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'
     # export BROWSER='/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
-    export BROWSER='/mnt/c/Program Files/Mozilla Firefox/firefox.exe'
+    # export BROWSER='/mnt/c/Program Files/Mozilla Firefox/firefox.exe'
     aws sso login --profile "${AWS_PROFILE}"
 fi
 
-# :: AZURE DEVOPS ::
+# ── AZURE DEVOPS ──────────────────────────────────────────────────────────────
 export AZURE_DEVOPS_AUTH_METHOD=pat
 export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/<your-org>"
-export AZURE_DEVOPS_PAT="<your-personal-access-token>"
+# export AZURE_DEVOPS_PAT — set in ~/.secrets
 export AZURE_DEVOPS_DEFAULT_PROJECT="<your-project>"
 
-# :: ATLASSIAN ::
+# ── ATLASSIAN ─────────────────────────────────────────────────────────────────
 export ATLASSIAN_SITE_NAME="<your-atlassian-site>"
 export ATLASSIAN_USER_EMAIL="<your-email>"
-export ATLASSIAN_API_TOKEN="<your-api-token>"
+# export ATLASSIAN_API_TOKEN — set in ~/.secrets
 
-# :: MISC ::
-# Path to the dev-toolbox bash scripts directory (set by setup-distro.sh).
-export DEV_TOOLBOX="<SET_BY_SETUP_DISTRO>"
+# ── MISC ──────────────────────────────────────────────────────────────────────
+# Map the dev-toolbox scripts directory to PATH (platform-aware).
+# PLATFORM is set by ~/.bashrc before this file is sourced.
+case "$PLATFORM" in
+    macos) export DEV_TOOLBOX="/volumes/data/projects/.local-dev-toolbox/scripts/bash" ;;
+    wsl)   export DEV_TOOLBOX="/mnt/d/repos/.local-dev-toolbox/scripts/bash" ;;
+    *)     export DEV_TOOLBOX="$HOME/repos/.local-dev-toolbox/scripts/bash" ;;
+esac
 export PATH="$PATH:$DEV_TOOLBOX"
 export HISTSIZE=100
 
-# :: PERSONAL ALIASES ::
-# Adjust the Windows drive letter and repo/project names to match your setup.
-# WSL mounts Windows drives as /mnt/<drive-letter-lowercase>/...
-REPOS_ROOT="${REPOS_ROOT:-/mnt/d/Repos}"        # Windows repos root in WSL
-MY_REPO="${MY_REPO:-$REPOS_ROOT/YourProject}"   # primary repo you work in daily
+# ── PERSONAL ALIASES ──────────────────────────────────────────────────────────
 
-alias cdrec="cd \"/mnt/c/Users/${WIN_USER}/Videos/Screen Recordings\""
-alias downloads="cd \"/mnt/c/Users/${WIN_USER}/Downloads\""
-alias cdrepo="cd \"$MY_REPO\""
-alias repos="cd \"$REPOS_ROOT\""
+alias cls='clear'
+alias ping='ping -c 10'
+alias apt-get='sudo apt-get'
+alias less='less -R'
+alias mkdir='mkdir -p'
+alias bd='cd "$OLDPWD"'                                # cd into previous directory
+alias rm='trash -v'
+alias rmd='/bin/rm --recursive --force --verbose'      # hard-delete a directory tree
 
-alias edit-local="nano ~/.bashrc.local" # edit this file quickly
-alias reload="source ~/.bashrc"         # reload this bashrc without restarting
+# Listing
+alias la='ls -Alh'
+alias ls='ls -aFh --color=always'
+alias lx='ls -lXBh'    # sort by extension
+alias lk='ls -lSrh'    # sort by size
+alias lc='ls -ltcrh'   # sort by change time
+alias lu='ls -lturh'   # sort by access time
+alias lr='ls -lRh'     # recursive
+alias lt='ls -ltrh'    # sort by date
+alias lm='ls -alh | more'
+alias lw='ls -xAh'     # wide
+alias ll='ls -Fls'
+alias lf="ls -l | grep -Ev '^d'"   # files only
+alias ldir="ls -l | grep -E '^d'"  # directories only
 
-# Add metadata option to /etc/wsl.conf so Linux file-permission bits are preserved.
-# chmod +x "$REPOS_ROOT/.local-dev-toolbox/scripts/bash/"*.sh  # make scripts executable
+# Permissions
+alias mx='chmod a+x'
+alias 000='chmod -R 000'
+alias 644='chmod -R 644'
+alias 666='chmod -R 666'
+alias 755='chmod -R 755'
+alias 777='chmod -R 777'
+
+# Disk / space
+alias diskspace="du -S | sort -n -r | more"
+alias folders='du -h --max-depth=1'
+alias folderssort='find . -maxdepth 1 -type d -print0 | xargs -0 du -sk | sort -rn'
+alias tree='tree -CAhF --dirsfirst'
+alias treed='tree -CAFd'
+alias mountedinfo='df -hT'
+
+# Docker
+alias docker-clean='docker container prune -f; docker image prune -f; docker network prune -f; docker volume prune -f'
+
+# ── NAVIGATION (platform-aware) ───────────────────────────────────────────────
+case "$PLATFORM" in
+    macos)
+        alias repos='cd /volumes/data/projects'
+        alias cdtoolbox='cd "/volumes/data/projects/.local-dev-toolbox"'
+        # alias cdhammy='cd "/volumes/data/projects/hammayo.github.io"'
+        # alias cdmyrepo='cd "/volumes/data/projects/<your-repo>"'
+        ;;
+    wsl)
+        alias repos='cd /mnt/d/repos'
+        alias cdtoolbox='cd "/mnt/d/repos/.local-dev-toolbox"'
+        # alias cdhammy='cd "/mnt/d/repos/hammayo.github.io"'
+        # alias cdmyrepo='cd "/mnt/d/repos/<your-repo>"'
+        alias cdrec='cd "/mnt/c/users/<your-windows-user>/videos/screen recordings"'
+        alias downloads='cd "/mnt/c/users/<your-windows-user>/downloads"'
+        ;;
+    *)
+        alias repos='cd "$HOME/repos"'
+        alias cdtoolbox='cd "$HOME/repos/.local-dev-toolbox"'
+        # alias cdmyrepo='cd "$HOME/repos/<your-repo>"'
+        ;;
+esac
+
+alias edit-local="nano ~/.bashrc.local"  # edit this file quickly
+alias reload="source ~/.bashrc"          # reload bashrc without restarting
+
+# ── WSL: ENABLE METADATA ──────────────────────────────────────────────────────
+# Adds Linux file-permission metadata to /etc/wsl.conf (run once after WSL install).
 alias wsl-enable-metadata='
   if grep -q "^\[automount\]" /etc/wsl.conf 2>/dev/null; then
     if grep -q "^options" /etc/wsl.conf; then
@@ -82,8 +152,9 @@ alias wsl-enable-metadata='
   fi
 '
 
-# :: STARTUP :: (runs every time a new shell opens — keep it fast)
-# cdrepo
-# git status
+# ── STARTUP ───────────────────────────────────────────────────────────────────
+# Commands run every time a new interactive shell opens — keep it fast.
+# Uncomment the ones you want:
 
-
+# [[ "$PLATFORM" == "wsl" ]] && cdfs   # jump straight to your main repo on WSL
+# git status                           # show repo state on open

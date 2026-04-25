@@ -21,6 +21,7 @@ CLAUDE.md
 
 /scripts/bash/.claude.json
 /scripts/bash/.bashrc.local
+/scripts/bash/.secrets
 
 # Windows Sandbox Setup
 /scripts/powershell/sandbox/.idea/
