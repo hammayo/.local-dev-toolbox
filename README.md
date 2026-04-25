@@ -1,64 +1,168 @@
 # .local-dev-toolbox
 
-Cross-platform developer automation and environment setup toolkit. Bash and PowerShell scripts for bulk Git repository management, shell configuration, Git hooks, and Windows Sandbox provisioning.
+I work across macOS and WSL, switch between projects often, and set up new machines
+more than I'd like. After years of rebuilding my environment by hand and carrying
+scripts in my head, I collected everything into one place.
 
-## Repository Structure
+This is that place. Bash and PowerShell scripts for bootstrapping a dev environment,
+managing Git repositories in bulk, configuring the shell, and keeping secrets off
+the filesystem where possible.
+
+## Repository structure
 
 ```
-scripts/
-├── .docs/                     Per-script documentation (mirrors script folder layout)
-├── bash/                      Bash scripts and dotfiles
-│   ├── .bashrc                    Team-reusable shell config (WSL/Linux/macOS)
-│   ├── .bash_profile              Login shell startup
-│   ├── .bashrc.local              Personal overrides (gitignored, copied to ~ by bootstrap)
-│   ├── .bashrc.local.example      Template with placeholders for new users
-│   ├── .zshrc                     Zsh equivalent
-│   ├── _update-repos.sh           Bulk Git fetch/pull
-│   ├── setup-distro.sh            Dev environment bootstrap
-│   └── fc-rsync.sh                Backup via rsync
-├── powershell/
-│   ├── utils/                     Repository management, git history, timestamps
-│   ├── wsl/                       WSL distribution management
-│   └── sandbox/                   Windows Sandbox setup automation for service solution
-├── batch/                     Windows batch backup scripts
-└── git-hooks/                 Git hook scripts (pre-commit, commit-msg)
+.local-dev-toolbox/
+├── scripts/
+│   ├── bash/                           Bash scripts and dotfiles (macOS · WSL · Linux)
+│   │   ├── .bashrc                       Cross-platform interactive shell config
+│   │   ├── .bash_profile                 Login shell entry point — sources .bashrc
+│   │   ├── .zshrc                        Zsh equivalent of .bashrc
+│   │   ├── .bashrc.local                 Personal overrides — gitignored, copied to ~ on bootstrap
+│   │   ├── .bashrc.local.example         Template for .bashrc.local — sources ~/.secrets for creds
+│   │   ├── .config/
+│   │   │   └── starship/                 Starship prompt theme library
+│   │   │       ├── hammy-toolbox.toml      Active default (Gruvbox Dark)
+│   │   │       ├── gruvbox-rainbow.toml
+│   │   │       ├── catppuccin-powerline.toml
+│   │   │       ├── tokyo-night.toml
+│   │   │       └── pastel-powerline.toml
+│   │   ├── setup-distro.sh               Idempotent dev environment bootstrap (9 categories)
+│   │   ├── _update-repos.sh              Bulk git fetch/pull — background subshell parallelism
+│   │   ├── fc-rsync.sh                   rsync backup that honours .gitignore
+│   │   ├── config.jsonc                  Fastfetch system info display config
+│   │   └── sources.list                  APT sources for additional packages
+│   │
+│   ├── powershell/
+│   │   ├── utils/                        Windows-side repo and release tooling
+│   │   │   ├── _update-repos.ps1           Bulk git fetch/pull — RunspacePool parallelism
+│   │   │   ├── git-history.ps1             Release notes from git log for a named period
+│   │   │   └── fix-timestamps.ps1          Batch-update file timestamps by extension
+│   │   ├── wsl/
+│   │   │   └── migrate-wsl-distro.ps1      Export and re-import a WSL distro to a new path
+│   │   └── sandbox/                      Windows Sandbox provisioning pipeline
+│   │       ├── _sandbox-config.wsb         Sandbox XML config — maps host folder, sets logon command
+│   │       ├── setup-wsb.ps1               Orchestrator — runs all phases in sequence
+│   │       ├── shared-functions.ps1        Common helpers (logging, retry, PATH management)
+│   │       ├── setup-winget.ps1            Install winget package manager
+│   │       ├── setup-chocolatey.ps1        Install Chocolatey + custom NuGet source
+│   │       ├── setup-nodejs.ps1            Install pinned Node.js version via Chocolatey
+│   │       └── setup-angular.ps1           Install pinned Angular CLI via npm
+│   │
+│   ├── batch/                            Windows batch scripts
+│   │   ├── _backup_fc-repo.bat             xcopy backup — wipes destination, full snapshot
+│   │   └── .exclude.txt                    xcopy exclusion list (build artefacts, IDE dirs)
+│   │
+│   ├── git-hooks/                        Drop into any repo's .git/hooks/
+│   │   ├── pre-commit                      Runs gitleaks against staged changes — blocks secrets
+│   │   ├── commit-msg                      Prefixes commit message with ticket from branch name
+│   │   └── .gitleaks.toml                  Gitleaks config and allowlist
+│   │
+│   └── .docs/                            Per-script documentation (mirrors script layout)
+│      
+└── .gitleaks.toml                        Root-level gitleaks config (symlinked from git-hooks/)
 ```
 
-## Scripts
+## Quick start
 
-### Repository Management
+```bash
+# Bootstrap a new WSL or Linux machine
+bash /mnt/d/repos/.local-dev-toolbox/scripts/bash/setup-distro.sh
 
-| Script | Platform | Description | Docs |
-|--------|----------|-------------|------|
-| `scripts/powershell/utils/_update-repos.ps1` | Windows | Batch fetch/pull for multiple Git repositories with RunspacePool parallelism | [docs](scripts/.docs/powershell/_update-repos.md) |
-| `scripts/bash/_update-repos.sh` | Linux/macOS | Bash equivalent using background subshells for parallel processing | [docs](scripts/.docs/bash/_update-repos.md) |
+# Bootstrap a macOS machine
+bash /volumes/data/projects/.local-dev-toolbox/scripts/bash/setup-distro.sh
 
-Both scripts scan a root directory for child folders matching a configurable prefix, then fetch and pull each repo in parallel (default: 4 workers). Supports `--skip-dirty`, `--stash-dirty`, `--use-rebase`, `--fetch-all-remotes`, and `--verbose`.
+# Dotfiles only — no tool installs
+bash scripts/bash/setup-distro.sh --only=dotfiles
 
-### Environment Setup
+# Upgrade everything already installed
+bash scripts/bash/setup-distro.sh --upgrade
+```
 
-| Script | Platform | Description | Docs |
-|--------|----------|-------------|------|
-| `scripts/bash/setup-distro.sh` | Linux/macOS | Idempotent dev environment bootstrap — symlinks dotfiles, installs dev tools, CLI utilities, shell enhancements, language runtimes, cloud CLIs, web server tooling, containers, and PowerShell | [docs](scripts/.docs/bash/setup-distro.md) |
-| `scripts/powershell/wsl/migrate-wsl-distro.ps1` | Windows | Migrate a WSL distribution to a new location with export/import | [docs](scripts/.docs/powershell/wsl/migrate-wsl-distro.md) |
+After bootstrap: `source ~/.bashrc`
 
-### Utilities
+## What the bootstrap does
 
-| Script | Platform | Description | Docs |
-|--------|----------|-------------|------|
-| `scripts/powershell/utils/git-history.ps1` | Windows | Generate formatted release notes from Git commit history for specified time periods | [docs](scripts/.docs/powershell/git-history.md) |
-| `scripts/powershell/utils/fix-timestamps.ps1` | Windows | Batch timestamp updates for build artifacts | [docs](scripts/.docs/powershell/fix-timestamps.md) |
-| `scripts/bash/fc-rsync.sh` | Linux/macOS | Backup and sync repositories using rsync | [docs](scripts/.docs/bash/fc-rsync.md) |
-| `scripts/batch/_backup_fc-repo.bat` | Windows | Repository backup via xcopy | — |
+`setup-distro.sh` is idempotent — re-running it on an already-configured machine
+skips what's already there unless you pass `--upgrade`. It works through nine
+categories in dependency order:
 
-### Git Hooks
+```
+dotfiles → core → cli → shell → languages → cloud → web → containers → powershell
+```
 
-| Script | Description | Docs |
-|--------|-------------|------|
-| `scripts/git-hooks/pre-commit` | Runs [gitleaks](https://github.com/gitleaks/gitleaks) against staged changes to prevent secrets from being committed | [docs](scripts/.docs/git-hooks/pre-commit.md) |
-| `scripts/git-hooks/commit-msg` | Automatically prefixes commit messages with ticket numbers extracted from branch names (e.g. `feature/123-foo` → `123 - message`) | — |
+The `dotfiles` category handles the shell config. There are three tiers, each
+deployed differently because each has different trust requirements:
 
-Install hooks by copying them into your repository's `.git/hooks/` folder:
+| File | Deployed as | Reason |
+|------|-------------|--------|
+| `.bashrc`, `.bash_profile`, `.zshrc` | Symlink | Repo edits are live immediately in every shell |
+| `.bashrc.local` | Copy | Machine-specific — different on every machine |
+| `.secrets` | Copy, chmod 600 | Credentials — never a symlink, never in the repo |
+
+`.bashrc.local` sources `~/.secrets` at the top. Tokens and PATs live there, not
+inline in `.bashrc.local`. If `scripts/bash/.secrets` exists locally in the toolbox
+(gitignored), the bootstrap copies it automatically. Otherwise it prints a reminder
+to create it:
+
+```bash
+touch ~/.secrets && chmod 600 ~/.secrets
+```
+
+## Managing repositories
+
+Both scripts scan a root directory for repos matching a name prefix, then
+fetch and pull in parallel. Default: 4 workers.
+
+| Script | Platform | Docs |
+|--------|----------|------|
+| `scripts/bash/_update-repos.sh` | Linux / macOS | [docs](scripts/.docs/bash/_update-repos.md) |
+| `scripts/powershell/utils/_update-repos.ps1` | Windows | [docs](scripts/.docs/powershell/_update-repos.md) |
+
+```bash
+# Bash
+bash scripts/bash/_update-repos.sh --root-path ~/repos --prefix MyProject --verbose
+
+# PowerShell
+pwsh scripts/powershell/utils/_update-repos.ps1 --root-path D:\Repos --prefix MyProject --verbose
+```
+
+Both support `--skip-dirty`, `--stash-dirty`, `--use-rebase`, `--fetch-all-remotes`,
+and `--parallel N`. The `--prefix` flag is effectively required — the default (`Hydra`)
+matches nothing on a generic machine.
+
+## Shell configuration
+
+The `.bashrc` and `.zshrc` are built around two principles: no personal data in
+version control, and graceful degradation when optional tools aren't installed.
+
+`PLATFORM` is detected at startup (`macos` | `wsl` | `debian` | `redhat` | `arch`)
+and available everywhere — including in `.bashrc.local`, where it drives
+platform-conditional paths and aliases.
+
+Optional tools enhance the shell but their absence doesn't break it:
+
+| Tool | What it replaces |
+|------|-----------------|
+| [eza](https://github.com/eza-community/eza) | `ls` with icons and git status |
+| [bat](https://github.com/sharkdp/bat) | `cat` with syntax highlighting |
+| [fzf](https://github.com/junegunn/fzf) + [fd](https://github.com/sharkdp/fd) | Fuzzy file/dir/process pickers (`fe`, `fcd`, `fkill`) |
+| [zoxide](https://github.com/ajeetdsouza/zoxide) | `cd` with directory frecency (`z`, `Ctrl+F`) |
+| [starship](https://starship.rs) | Shell prompt |
+
+Starship themes live in `scripts/bash/.config/starship/`. The active theme is
+`hammy-toolbox` (Gruvbox Dark), symlinked to `~/.config/starship/starship.toml`
+by the bootstrap. Switch themes with:
+
+```bash
+starship-theme                # list available themes
+starship-theme tokyo-night    # apply one
+```
+
+Full shell config docs: [.bashrc](scripts/.docs/bash/bashrc.md) · [.bashrc.local](scripts/.docs/bash/bashrc-local.md)
+
+## Git hooks
+
+Two hooks, installed manually into each repo's `.git/hooks/`:
 
 ```bash
 cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
@@ -66,63 +170,115 @@ cp scripts/git-hooks/commit-msg .git/hooks/commit-msg
 chmod +x .git/hooks/pre-commit .git/hooks/commit-msg
 ```
 
-The pre-commit hook requires gitleaks to be installed. Repository-level configuration is in `.gitleaks.toml`.
+**`pre-commit`** — runs [gitleaks](https://github.com/gitleaks/gitleaks) against
+staged changes. Blocks commits containing secrets. Bypass with `SKIP_GITLEAKS=1`
+if a false positive is blocking and you need to ship. Fix the allowlist afterward.
+See [docs](scripts/.docs/git-hooks/pre-commit.md).
 
-### Shell Configuration
+**`commit-msg`** — prefixes commit messages with the ticket number from the branch
+name. `feature/4821-auth-fix` → `4821 - Your commit message`. Skips `main`,
+`master`, `develop`, and merge commits.
 
-| File | Description | Docs |
-|------|-------------|------|
-| `scripts/bash/.bashrc` | Team-reusable Bash config for WSL/Linux with smart tool detection (fzf, eza, bat, zoxide) and graceful degradation | [docs](scripts/.docs/bash/bashrc.md) |
-| `scripts/bash/.bash_profile` | Login shell startup | [docs](scripts/.docs/bash/bash-profile.md) |
-| `scripts/bash/.bashrc.local` | Personal overrides — secrets, aliases, startup (gitignored, copied to `~` by bootstrap) | [docs](scripts/.docs/bash/bashrc-local.md) |
-| `scripts/bash/.bashrc.local.example` | Template with placeholders for new users without an existing `.bashrc.local` | [docs](scripts/.docs/bash/bashrc-local.md) |
+## Utilities
 
-### Windows Sandbox
-
-`scripts/powershell/sandbox/` contains a full provisioning pipeline for Windows Sandbox — installs packages via winget and Chocolatey, sets up Node.js and Angular CLI. Entry point: `setup-wsb.ps1`. See [docs](scripts/.docs/powershell/sandbox.md).
-
-## Quick Start
-
-### Bootstrapping a New WSL Distro
-
-Run the bootstrap script directly from the Windows-mounted toolbox path on first launch:
+| Script | Platform | Description | Docs |
+|--------|----------|-------------|------|
+| `scripts/powershell/utils/git-history.ps1` | Windows | Release notes from `git log` for a named period (`today`, `this_week`, `last_4_weeks`, etc.) | [docs](scripts/.docs/powershell/git-history.md) |
+| `scripts/powershell/utils/fix-timestamps.ps1` | Windows | Batch-update file timestamps by extension | [docs](scripts/.docs/powershell/fix-timestamps.md) |
+| `scripts/bash/fc-rsync.sh` | Linux / macOS | rsync backup that respects `.gitignore` | [docs](scripts/.docs/bash/fc-rsync.md) |
+| `scripts/powershell/wsl/migrate-wsl-distro.ps1` | Windows | Export and re-import a WSL distro to a new path | [docs](scripts/.docs/powershell/wsl/migrate-wsl-distro.md) |
+| `scripts/batch/_backup_fc-repo.bat` | Windows | xcopy backup, wipes destination first | — |
 
 ```bash
-bash /mnt/d/Repos/.local-dev-toolbox/scripts/bash/setup-distro.sh
-```
-
-This will:
-
-1. **Symlink** `~/.bashrc` and `~/.bash_profile` to the toolbox versions — changes to the repo are reflected automatically in the shell.
-2. **Copy** `.bashrc.local` from the toolbox to `~/.bashrc.local` (personal config with secrets, not symlinked). Falls back to `.bashrc.local.example` if no `.bashrc.local` exists.
-3. **Install** all dev tools across 9 categories (dotfiles, core, cli, shell, languages, cloud, web, containers, powershell).
-4. Set `DEV_TOOLBOX` to the toolbox bash scripts path, adding it to `PATH`.
-
-After the bootstrap completes, reload the shell: `source ~/.bashrc`
-
-### Other Commands
-
-```bash
-# Install only specific categories
-bash ./scripts/bash/setup-distro.sh --only=core,cli,languages
-
-# Only link dotfiles, skip tool installs
-bash ./scripts/bash/setup-distro.sh --only=dotfiles
-
-# Upgrade all tools
-bash ./scripts/bash/setup-distro.sh --upgrade
-
-# PowerShell — fetch/pull all matching repos
-pwsh ./scripts/powershell/utils/_update-repos.ps1 -root-path D:\Repos --no-pull
-
-# Bash — same operation on Linux/macOS
-bash ./scripts/bash/_update-repos.sh --root-path ~/repos --verbose --parallel 4
-
 # Generate release notes for the last 4 weeks
-pwsh ./scripts/powershell/utils/git-history.ps1 -Period "last_4_weeks"
+pwsh scripts/powershell/utils/git-history.ps1 -Period "last_4_weeks"
 ```
 
-## Contributing
+## Windows Sandbox
 
-- Add scripts under `scripts/<area>/`.
-- Add a matching documentation file in `scripts/.docs/<area>/<script-name>.md`.
+`scripts/powershell/sandbox/` provisions a Windows Sandbox instance from scratch —
+winget, Chocolatey, Node.js, Angular CLI. Open `_sandbox-config.wsb`, update
+the `<HostFolder>` path, set Chocolatey source credentials as environment variables,
+and double-click to launch. See [docs](scripts/.docs/powershell/sandbox.md).
+
+## Notable configuration
+
+The things you're most likely to need to change when running this on a new machine.
+
+### Repository updater (`_update-repos.sh` / `_update-repos.ps1`)
+
+| Setting | Default | How to change |
+|---------|---------|---------------|
+| Root scan path | `$HOME/repos` (Bash) · `D:\Repos` (PS) | `--root-path /your/path` |
+| Repo name prefix | `Hydra` | `--prefix MyProject` — effectively required, the default matches nothing on a generic machine |
+| Worker count | `4` | `--parallel N` |
+
+### Bootstrap (`setup-distro.sh`)
+
+Categories run in a fixed dependency order. Use `--only` or `--skip` to narrow the run:
+
+```bash
+# Skip categories you don't need
+bash scripts/bash/setup-distro.sh --skip=cloud,containers,web
+
+# Re-run a single category after a failure
+bash scripts/bash/setup-distro.sh --only=languages --upgrade
+```
+
+### Shell history (`.bashrc`)
+
+```bash
+HISTSIZE=500        # commands kept in memory
+HISTFILESIZE=10000  # lines written to ~/.bash_history
+```
+
+Both are defined in `.bashrc`. Override them in `.bashrc.local` if you want more.
+
+### Toolbox path and secrets (`.bashrc.local`)
+
+The two things you always set on a new machine:
+
+```bash
+# Platform-aware toolbox path — adjust to match where the repo lives
+case "$PLATFORM" in
+    macos) export DEV_TOOLBOX="/volumes/data/projects/.local-dev-toolbox/scripts/bash" ;;
+    wsl)   export DEV_TOOLBOX="/mnt/d/repos/.local-dev-toolbox/scripts/bash" ;;
+    *)     export DEV_TOOLBOX="$HOME/repos/.local-dev-toolbox/scripts/bash" ;;
+esac
+
+# AWS / Bedrock (only needed if using Claude Code via Bedrock)
+export AWS_PROFILE="your-bedrock-profile"
+export CLAUDE_CODE_USE_BEDROCK=0   # set to 1 to route through Bedrock
+```
+
+Tokens and PATs go in `~/.secrets` (chmod 600), not here. The bootstrap creates it or reminds you to.
+
+### Git history / release notes (`git-history.ps1`)
+
+Two environment variables configure output without touching the script:
+
+```powershell
+$env:GIT_HISTORY_REPO_PATH  = "D:\Repos\MyProject"   # repo to run against
+$env:GIT_HISTORY_TICKET_URL = "https://jira.example.com/browse/"  # ticket link prefix
+```
+
+### Windows Sandbox (`setup-wsb.ps1`)
+
+Version pins and the Chocolatey feed are environment variables, not hardcoded:
+
+| Variable | Default     | Purpose |
+|----------|-------------|---------|
+| `NODE_VERSION` | `^25.0.0`   | Node.js version to install via Chocolatey |
+| `ANGULAR_VERSION` | `^20.0.0`   | Angular CLI version to install via npm |
+| `CHOCO_SOURCE_URL` | _(empty)_   | Private NuGet feed URL |
+| `CHOCO_SOURCE_USER` | _(empty)_   | Feed credentials |
+| `CHOCO_SOURCE_NAME` | `choco-dev` | Feed source name |
+
+Set them before launching the sandbox or pass them via the `.wsb` `<Environment>` block.
+
+## Adding a script
+
+1. Place it under `scripts/<area>/`
+2. Add a matching doc at `scripts/.docs/<area>/<script-name>.md`
+3. Bash: `set -euo pipefail` and a `--help` block
+4. PowerShell: `Set-StrictMode -Version Latest` and `[CmdletBinding()]`

@@ -24,9 +24,11 @@ bash /mnt/d/Repos/.local-dev-toolbox/scripts/bash/setup-distro.sh
 
 The `dotfiles` category runs first and:
 
-1. **Symlinks** `~/.bashrc` and `~/.bash_profile` to the toolbox versions in `scripts/bash/`. Changes made to these files in the repo are reflected automatically in the shell — no need to copy again.
-2. **Copies** `scripts/bash/.bashrc.local` to `~/.bashrc.local` if it exists (gitignored, user-specific config with secrets and personal aliases). If `.bashrc.local` is not found, falls back to `.bashrc.local.example` and fills in the `DEV_TOOLBOX` path.
-3. Sets `DEV_TOOLBOX` to the resolved path of `scripts/bash/`, adding all toolbox scripts to `PATH` via `.bashrc.local`.
+1. **Symlinks** `~/.bashrc`, `~/.bash_profile`, and `~/.zshrc` to the toolbox versions in `scripts/bash/`. Changes made to these files in the repo are reflected automatically in the shell — no need to copy again.
+2. **Symlinks** `~/.config/starship/starship.toml` to `scripts/bash/.config/starship/hammy-toolbox.toml` (the active Gruvbox Dark theme).
+3. **Copies** `scripts/bash/.bashrc.local` to `~/.bashrc.local` if it exists (gitignored, machine-specific config). Falls back to `.bashrc.local.example` if not found.
+4. **Copies** `scripts/bash/.secrets` to `~/.secrets` (chmod 600) if a local secrets file exists in the toolbox. If not found, prints a reminder to create it manually. Never symlinked.
+5. Sets `DEV_TOOLBOX` to the resolved path of `scripts/bash/`, adding all toolbox scripts to `PATH` via `.bashrc.local`.
 
 Existing files at the symlink targets are backed up with a `.bak.<timestamp>` suffix before being replaced.
 
@@ -81,7 +83,7 @@ Categories run in dependency order: dotfiles → core → cli → shell → lang
 
 | Category | What it does | Method |
 |---|---|---|
-| dotfiles | Symlinks `.bashrc`, `.bash_profile` to toolbox; copies `.bashrc.local` | Symlinks + copy |
+| dotfiles | Symlinks `.bashrc`, `.bash_profile`, `.zshrc`, `starship/hammy-toolbox.toml`; copies `.bashrc.local` and `.secrets` (chmod 600) | Symlinks + copy |
 | core | curl, wget, git, unzip, build-essential, gitleaks, tailscale | Package manager; gitleaks via GitHub release binary; tailscale via official install script (Linux) or brew cask (macOS) |
 | cli | bat, ripgrep, fzf, zoxide, fastfetch, htop | Package manager |
 | shell | starship, Nerd Font (FiraCode) | Starship via curl installer; font via brew cask (macOS) or GitHub release (Linux) |

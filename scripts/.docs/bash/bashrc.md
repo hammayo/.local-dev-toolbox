@@ -36,9 +36,9 @@ A team-reusable Bash configuration for WSL (and native Linux). It provides a wel
 
 The `.bashrc` is designed around three principles:
 
-1. **No secrets in version control** -- API tokens, PATs, and personal paths live in `~/.bashrc.local` (gitignored).
+1. **No secrets in version control** -- API tokens and PATs live in `~/.secrets` (chmod 600, never committed). Machine-specific config goes in `~/.bashrc.local` (gitignored).
 2. **Graceful degradation** -- every optional tool (`eza`, `bat`, `fzf`, `zoxide`, etc.) is detected at runtime. If it's not installed, the config falls back to standard utilities.
-3. **Distro-aware** -- package management aliases adapt to Debian, Red Hat, and Arch families automatically.
+3. **Distro-aware** -- package management aliases adapt to Debian, Red Hat, Arch, and macOS/Homebrew automatically.
 
 ## Installation
 
@@ -277,9 +277,8 @@ Distro-aware aliases that adapt automatically:
 
 ## Prompt and Enhancements
 
-- **Starship** -- cross-shell customisable prompt. Config read from `$XDG_CONFIG_HOME/starship/starship.toml`.
-- Config -- `starship preset gruvbox-rainbow -o ~/.config/starship.toml`
-- Preset Profiles -- `.config/starship/*.toml`
+- **Starship** -- cross-shell customisable prompt. Active config: `~/.config/starship/starship.toml` (Gruvbox Dark / hammy-toolbox theme). `STARSHIP_CONFIG` is set in `.bashrc` and `.zshrc` — no manual override needed.
+- **Theme switching** -- use the `starship-theme` function to switch between themes in `$DEV_TOOLBOX/.config/starship/`. Run `starship-theme` with no args to list available themes; `starship-theme tokyo-night` to apply one.
 - **Zoxide** -- smarter `cd` that learns your most-used directories. Use `z <partial>` to jump, or `Ctrl+F` for interactive selection.
 
 ## External Integrations
@@ -296,12 +295,12 @@ The following tool environments are sourced if present:
 
 The file sources `~/.bashrc.local` at the very end, so anything defined there takes precedence. Use this for:
 
-- API tokens and secrets (AWS, Azure DevOps, Atlassian, etc.)
-- Machine-specific aliases and paths
-- Tool configuration that varies per user
-- Startup commands (e.g. `cdfs`, `git status`)
+- Sourcing `~/.secrets` (chmod 600) where API tokens and PATs are kept
+- Machine-specific aliases and paths (platform-aware via `$PLATFORM`)
+- `DEV_TOOLBOX` path and `PATH` extension
+- Startup commands (e.g. `[[ "$PLATFORM" == "wsl" ]] && cdfs`, `git status`)
 
-A template is provided at `scripts/bash/.bashrc.local.example`.
+Secrets themselves should never be inlined in `.bashrc.local` — use `~/.secrets` instead. A template is provided at `scripts/bash/.bashrc.local.example`.
 
 ## Optional Tools
 
